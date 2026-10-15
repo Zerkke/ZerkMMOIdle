@@ -7376,3 +7376,246 @@ img, svg, video {
   .tutorial-overlay h3, .tutorial-card h3 { font-size: 11px !important; }
   .tutorial-overlay p, .tutorial-card p { font-size: 9.5px !important; }
 }
+
+/* ===== MOBILE FIX v4 (ULTRA) ===== */
+@media (max-width: 900px) {
+
+  /* Esconder QUALQUER overflow horizontal em tudo */
+  html, body, #app, .app-shell, .app {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+    width: 100vw !important;
+    box-sizing: border-box !important;
+  }
+  body * { max-width: 100vw !important; }
+
+  /* Header — reorganizar como grelha 100% controlada */
+  header, .app-header, .topbar {
+    display: grid !important;
+    grid-template-columns: 1fr auto !important;
+    grid-template-areas: "logo version" "pills pills" "tabs tabs" !important;
+    gap: 4px 8px !important;
+    padding: 8px 8px 0 8px !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  header h1, .app-title, .logo {
+    grid-area: logo !important;
+    font-size: 13px !important;
+    letter-spacing: 0.5px !important;
+    line-height: 1 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+  header .version, .app-version {
+    grid-area: version !important;
+    font-size: 7px !important;
+    padding: 2px 5px !important;
+    white-space: nowrap !important;
+    align-self: center !important;
+  }
+
+  /* Pills — grelha 3 colunas iguais */
+  .resource-bar {
+    grid-area: pills !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 3px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  .resource-bar__item {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    padding: 3px 2px !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 1px !important;
+    box-sizing: border-box !important;
+  }
+  .resource-bar__item svg { width: 8px !important; height: 8px !important; }
+  .resource-bar__label {
+    font-size: 6px !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+    text-align: center !important;
+  }
+  .resource-bar__value {
+    font-size: 10px !important;
+    font-weight: 800 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    max-width: 100% !important;
+  }
+
+  /* Tabs */
+  .tabs, nav.tabs, [role="tablist"], .tab-bar {
+    grid-area: tabs !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    width: 100% !important;
+    max-width: 100vw !important;
+    padding: 4px 2px !important;
+    margin: 0 !important;
+    gap: 2px !important;
+    box-sizing: border-box !important;
+    border-top: 1px solid rgba(180,150,60,0.2) !important;
+    border-bottom: 1px solid rgba(180,150,60,0.3) !important;
+  }
+  .tabs::-webkit-scrollbar { display: none !important; }
+
+  .tab-button, [role="tab"] {
+    flex: 0 0 auto !important;
+    padding: 6px 8px !important;
+    font-size: 8px !important;
+    letter-spacing: 0.3px !important;
+    white-space: nowrap !important;
+    min-height: 30px !important;
+  }
+
+  /* ============ TUTORIAL ULTRA COMPACTO ============ */
+  /* Força tamanho maximo de 20% do ecra, nunca cobre metade */
+  .tutorial-overlay,
+  [class*="tutorial"] {
+    position: fixed !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    height: auto !important;
+    max-height: 22vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    z-index: 9998 !important;
+    transform: none !important;
+    animation: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
+
+  /* QUALQUER elemento dentro do tutorial (card, div, section) fica pequeno */
+  .tutorial-overlay > *,
+  .tutorial-overlay > * > *,
+  .tutorial-card,
+  [class*="tutorial"] > div,
+  [class*="tutorial"] > section {
+    width: 100vw !important;
+    max-width: 100vw !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    border-radius: 10px 10px 0 0 !important;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.7) !important;
+    background: linear-gradient(180deg, rgba(30,26,45,0.98), rgba(15,14,24,0.99)) !important;
+    border: 1px solid rgba(180,150,60,0.4) !important;
+    border-bottom: none !important;
+    box-sizing: border-box !important;
+    max-height: 22vh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+  }
+
+  /* Esconder o rótulo "OBJETIVO ATUAL" e qualquer subtítulo */
+  .tutorial-overlay [class*="label"],
+  .tutorial-overlay [class*="subtitle"],
+  .tutorial-overlay [class*="eyebrow"],
+  .tutorial-overlay [class*="kicker"] {
+    display: none !important;
+  }
+
+  /* Esconder o último filho tipo "Powered by Netlify" ou botão que ocupa espaço */
+  .tutorial-overlay [class*="footer"],
+  .tutorial-overlay [class*="tag"] {
+    display: none !important;
+  }
+
+  /* Titulos pequenos */
+  .tutorial-overlay h1, .tutorial-overlay h2 {
+    font-size: 12px !important;
+    letter-spacing: 0.5px !important;
+    margin: 0 !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .tutorial-overlay h3, .tutorial-overlay h4 {
+    font-size: 11px !important;
+    letter-spacing: 0.3px !important;
+    margin: 0 !important;
+    line-height: 1.15 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  .tutorial-overlay p {
+    font-size: 9px !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    display: -webkit-box !important;
+    -webkit-line-clamp: 2 !important;
+    -webkit-box-orient: vertical !important;
+  }
+  .tutorial-overlay button {
+    padding: 5px 10px !important;
+    font-size: 9px !important;
+    min-height: 26px !important;
+    align-self: flex-start !important;
+  }
+
+  /* Dar espaço no fundo para o tutorial */
+  body { padding-bottom: 70px !important; }
+}
+
+@media (max-width: 500px) {
+  header h1, .app-title, .logo { font-size: 12px !important; letter-spacing: 0 !important; }
+  header .version, .app-version { font-size: 6px !important; padding: 1px 4px !important; }
+
+  .resource-bar__item svg { width: 7px !important; height: 7px !important; }
+  .resource-bar__label { font-size: 5.5px !important; }
+  .resource-bar__value { font-size: 9px !important; }
+
+  .tab-button, [role="tab"] { padding: 5px 6px !important; font-size: 7.5px !important; min-height: 28px !important; }
+
+  .tutorial-overlay,
+  [class*="tutorial"] { max-height: 20vh !important; }
+  .tutorial-overlay > *,
+  .tutorial-card { max-height: 20vh !important; padding: 6px 8px !important; }
+
+  .tutorial-overlay h1, .tutorial-overlay h2 { font-size: 11px !important; }
+  .tutorial-overlay h3, .tutorial-overlay h4 { font-size: 10px !important; }
+  .tutorial-overlay p { font-size: 8.5px !important; }
+  .tutorial-overlay button { padding: 4px 8px !important; font-size: 8px !important; min-height: 24px !important; }
+
+  body { padding-bottom: 60px !important; }
+}
