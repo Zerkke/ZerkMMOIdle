@@ -1,0 +1,146 @@
+import type { ClassId, ItemId, MonsterId, SkillId, ZoneId, BuffId, NodeId } from './ids';
+import type { Attributes } from './attributes';
+import type { EquipmentSlotId } from './equipment';
+import type { EssenceKind, EssenceTier } from './essence/types';
+
+export type ItemCategory = 'material' | 'consumable' | 'weapon' | 'armor' | 'accessory' | 'tool' | 'seed' | 'crop' | 'fish' | 'meat' | 'essence';
+export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+export type ToolCategory = 'pickaxe' | 'axe' | 'sickle' | 'fishing_rod' | 'skin_knife' | 'hammer';
+
+export interface ItemDefinition {
+  readonly id: ItemId;
+  readonly name: string;
+  readonly description: string;
+  readonly category: ItemCategory;
+  readonly rarity: ItemRarity;
+  readonly maxStack: number;
+  readonly sellPrice: number;
+  readonly equipSlot: EquipmentSlotId | null;
+  readonly attributeBonuses: Attributes | null;
+  readonly attackPower: number;
+  readonly defensePower: number;
+  readonly requiredLevel: number;
+  readonly enhanceable: boolean;
+  readonly protectionItemId: ItemId | null;
+  readonly toolCategory: ToolCategory | null;
+  readonly maxDurability: number;
+  readonly appliesBuffId: BuffId | null;
+  readonly seedForNodeId: NodeId | null;
+  /** Slots de essencia (Fase 17). 0 = item nao suporta essencias. */
+  readonly essenceSlots: number;
+  /** Preenchido apenas para items de categoria 'essence'. */
+  readonly essenceKind: EssenceKind | null;
+  readonly essenceTier: EssenceTier | null;
+
+  /** === Bonus fixos do item (opcional). === */
+  readonly bonusHp?: number | undefined;
+  /** Crit chance adicional (0..1). Ex: 0.05 = +5%. */
+  readonly bonusCritChance?: number | undefined;
+  /** Crit damage adicional (0..1). Ex: 0.2 = +20%. */
+  readonly bonusCritDamage?: number | undefined;
+  /** HP regenerado por segundo. */
+  readonly bonusHpRegen?: number | undefined;
+  /** Lifesteal adicional (0..1). Ex: 0.03 = +3% do dano vira HP. */
+  readonly bonusLifesteal?: number | undefined;
+}
+
+export function isEquippable(item: ItemDefinition): boolean {
+  return item.equipSlot !== null && item.attributeBonuses !== null;
+}
+
+export function isTool(item: ItemDefinition): boolean {
+  return item.category === 'tool' && item.toolCategory !== null;
+}
+
+export function isSeed(item: ItemDefinition): boolean {
+  return item.seedForNodeId !== null;
+}
+
+/* ==================== SKILLS ==================== */
+
+export type SkillKind = 'damage' | 'heal';
+
+export interface SkillDefinition {
+  readonly id: SkillId;
+  readonly name: string;
+  readonly description: string;
+  readonly kind: SkillKind;
+  readonly cooldownMs: number;
+  readonly resourceCost: number;
+  readonly multiplier: number;
+  readonly requiredLevel: number;
+}
+
+/* ==================== CLASSES ==================== */
+
+export interface BaseAttributes extends Attributes {}
+
+export interface CharacterClass {
+  readonly id: ClassId;
+  readonly name: string;
+  readonly description: string;
+  readonly baseHp: number;
+  readonly baseResource: number;
+  readonly resourceName: string;
+  readonly attributes: BaseAttributes;
+  readonly skillIds: readonly SkillId[];
+  /** Multiplicador aplicado ao AP final. Default 1.0 se ausente. (Fase 16) */
+  readonly apScaling?: number | undefined;
+  /** Multiplicador aplicado ao DP final. Default 1.0 se ausente. (Fase 16) */
+  readonly dpScaling?: number | undefined;
+}
+
+/* ==================== MONSTERS / BOSSES ==================== */
+
+export interface LootEntry {
+  readonly itemId: ItemId;
+  readonly chance: number;
+  readonly minQuantity: number;
+  readonly maxQuantity: number;
+}
+
+export interface MonsterDefinition {
+  readonly id: MonsterId;
+  readonly name: string;
+  readonly description: string;
+  readonly level: number;
+  readonly maxHp: number;
+  readonly attack: number;
+  readonly defense: number;
+  readonly attackIntervalMs: number;
+  readonly expReward: number;
+  readonly silverReward: number;
+  readonly loot: readonly LootEntry[];
+  /** Boss normal ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â usa o mesmo motor de combate. */
+  readonly isBoss: boolean;
+  /** Tier 0 = normal; 1-5 = boss com dificuldade progressiva. */
+  readonly bossTier: number;
+}
+
+/* ==================== ZONES ==================== */
+
+export type ZoneKind = 'village' | 'gathering' | 'combat' | 'boss' | 'expansion';
+
+export type ZoneUnlockCondition =
+  | { readonly kind: 'default' }
+  | { readonly kind: 'level'; readonly value: number }
+  | { readonly kind: 'quest'; readonly questId: string };
+
+export interface ZoneDefinition {
+  readonly id: ZoneId;
+  readonly name: string;
+  readonly description: string;
+  readonly kind: ZoneKind;
+  readonly minLevel: number;
+  readonly monsters: readonly MonsterId[];
+  readonly activities: readonly string[]; // ProfessionId[]
+  readonly unlockedBy: ZoneUnlockCondition;
+  readonly parentZoneId: ZoneId | null;
+  readonly bossId: MonsterId | null;
+  /** AP minimo para entrar na zona (0 = sem requisito). */
+  readonly requiredAp?: number | undefined;
+  /** DP minimo para entrar na zona (0 = sem requisito). */
+  readonly requiredDp?: number | undefined;
+  /** Flag de "expansion" ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â pode ser removido sem quebrar o save. */
+  readonly isExpansion: boolean;
+}

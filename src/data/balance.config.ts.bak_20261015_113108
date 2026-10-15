@@ -1,0 +1,144 @@
+/**
+ * Configuracao central de balanceamento.
+ * Todos os numeros de gameplay importantes devem estar AQUI,
+ * nao espalhados pelo codigo.
+ */
+
+export const BALANCE = {
+  /* ==================== Progressao ==================== */
+  character: {
+    /** XP necessaria para subir do nivel N. Curva exponencial suave. */
+    xpToNextLevel: (level: number): number => {
+      if (level >= 50) return Number.POSITIVE_INFINITY;
+      // Curva: 100 * 1.15^(level-1), arredondada a multiplos de 10
+      const base = 100 * Math.pow(1.15, level - 1);
+      return Math.round(base / 10) * 10;
+    },
+    /** Multiplicador de XP ganha por nivel (evita grind excessivo). */
+    xpRewardMultiplier: (level: number): number => {
+      return 1 + Math.max(0, level - 1) * 0.05;
+    },
+    /** Prata extra ganha por nivel. */
+    silverRewardMultiplier: (level: number): number => {
+      return 1 + Math.max(0, level - 1) * 0.08;
+    },
+    /** A cada subida de nivel, ganha N pontos de progressao. */
+    progressionPointsPerLevel: 3,
+    /** HP ganho por ponto de vitalidade. */
+    hpPerVitality: 10,
+    /** HP base do personagem. */
+    baseHp: 50,
+    /** Recurso base do personagem. */
+    baseResource: 20,
+    /** Recurso ganho por ponto de inteligencia. */
+    resourcePerIntelligence: 5,
+
+    /* Formula constants for AP/DP derivation (Fase 16) */
+    apFromStrength: 1.5,
+    dpFromVitality: 1.2,
+    attackBase: 5,
+    attackFromAp: 0.8,
+    attackFromAgilityDivisor: 3,
+    defenseFromDp: 0.7,
+    defenseFromStrengthDivisor: 4,
+    critFromAgility: 0.005,
+  },
+
+  /* ==================== Combate ==================== */
+  combat: {
+    /** Intervalo entre ataques do jogador (ms). */
+    playerAttackIntervalMs: 1000,
+    /** Regen de recurso por segundo. */
+    playerResourceRegenPerSec: 3,
+    /** Tempo de recuperacao apos derrota (ms). */
+    defeatRecoveryMs: 5000,
+    /** HP recuperado entre kills no combate automatico idle. */
+    hpRecoveryPerKillIdle: 5,
+    /** Multiplicador de dano critico. */
+    critMultiplier: 1.5,
+    /** Limite maximo de chance de critico. */
+    maxCritChance: 0.9,
+    /** Dano minimo (mesmo com defesa alta). */
+    minDamage: 1,
+  },
+
+  /* ==================== Lifeskills ==================== */
+  lifeskill: {
+    /** Tempo minimo de uma acao (ms) Ã¢â‚¬â€ evita velocidades absurdas. */
+    minActionTimeMs: 200,
+    /** Reducao maxima de tempo por mastery (0.4 = 40%). */
+    maxMasteryReduction: 0.4,
+    /** Fator de reducao por ponto de mastery. */
+    masteryTimeFactor: 0.001,
+    /** Reducao maxima de tempo pela ferramenta melhorada. */
+    maxToolReduction: 0.2,
+    /** Fator de reducao por nivel de melhoramento da ferramenta. */
+    toolTimeFactor: 0.02,
+    /** Multiplicador de quantidade de loot por ponto de mastery. */
+    masteryYieldFactor: 0.005,
+    /** Bonus de XP por nivel da profissao (a partir do 1). */
+    levelXpBonus: 0.02,
+  },
+
+  /* ==================== Economia ==================== */
+  economy: {
+    /** Preco que o NPC paga ao jogador = sellPrice * este fator. */
+    npcBuybackFactor: 0.5,
+    /** Preco minimo de compra do NPC (mesmo para itens baratos). */
+    minNpcBuyback: 1,
+    /** Limite de transacoes guardadas no ledger. */
+    maxTransactionsInLedger: 200,
+  },
+
+  /* ==================== Idle ==================== */
+  idle: {
+    /** Duracao maxima de simulacao offline (ms). */
+    maxOfflineMs: 8 * 60 * 60 * 1000,
+    /** Limite maximo de iteracoes por atividade (protecao contra loops). */
+    maxSimIterations: 5000,
+    /** Skew maximo de relogio aceite (ms). */
+    maxClockSkewMs: 60 * 1000,
+  },
+
+  /* ==================== Melhoramentos ==================== */
+  enhancement: {
+    /** Bonus de AP/DP por nivel de melhoramento (+10% por nivel). */
+    powerFactorPerLevel: 0.1,
+    /** Bonus de atributos por nivel de melhoramento (+5% por nivel). */
+    attributeFactorPerLevel: 0.05,
+  },
+
+  /* ==================== Buffs ==================== */
+  buffs: {
+    /** Numero maximo de buffs ativos simultaneamente. */
+    maxActiveBuffs: 8,
+  },
+
+  /* ==================== Essencias (Fase 17) ==================== */
+  essence: {
+    /** Slots de essencia por raridade de item. */
+    slotsPerRarity: {
+      common: 0,
+      uncommon: 0,
+      rare: 1,
+      epic: 2,
+      legendary: 3,
+    } as Readonly<Record<string, number>>,
+    /** Custo em prata por tier ao retirar uma essencia do item. */
+    removeCostPerTier: 50,
+    /** Custo em prata por tier ao aplicar uma essencia ao item. */
+    applyCostPerTier: 0,
+    /** Limite default de essencias do mesmo kind por item. */
+    defaultMaxStackPerItem: 1,
+  },
+
+  /* ==================== Save ==================== */
+  persistence: {
+    /** Intervalo entre auto-saves (ms). */
+    autoSaveIntervalMs: 30_000,
+    /** Versao atual do schema de save. */
+    schemaVersion: 7,
+  },
+} as const;
+
+export type Balance = typeof BALANCE;

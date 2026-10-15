@@ -1,0 +1,26 @@
+{
+  "name": "zerk-idle-mmorpg",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "idb": "^8.0.4",
+    "phaser": "^3.90.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.0.0",
+    "typescript": "^5.8.0",
+    "vite": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

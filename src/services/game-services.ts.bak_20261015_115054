@@ -1,0 +1,2375 @@
+import type { ContentRegistry } from '../data/registry';
+import { evaluateZoneAccess, buildZoneTree, zoneAccessMap } from '../domain/world/engine';
+import type { ZoneAccessInfo, ZoneTreeNode } from '../domain/world/types';
+import { findServicesInZone, type NpcServiceDefinition } from '../data/npc-services.data';
+import { BALANCE } from '../data/balance.config';
+import { rollRandomAttributes, sumRolls } from '../domain/random-attributes/engine';
+import { applyEssence, removeEssence, sumEssenceBonuses } from '../domain/essence/engine';
+import type { EssenceDefinition, EssenceInstance } from '../domain/essence/types';
+import { getEssenceByItemId, ESSENCES } from '../data/essences.data';
+import { ESSENCE_EVOLUTION } from '../data/essence-evolution.data';
+import { bonusAtLevel, checkUpgrade, checkSacrifice, sacrificeCost, SACRIFICE_REQUIRED } from '../domain/essence/evolution';
+import type { RandomAttributeRoll, RandomBonusBundle } from '../domain/random-attributes/types';
+import { RANDOM_ATTRIBUTES } from '../data/random-attributes.data';
+import type { SkillDefinition, MonsterDefinition, ItemDefinition } from '../domain/content';
+import { isEquippable, isTool, isSeed } from '../domain/content';
+import type { ItemId, MonsterId, NodeId, ProfessionId, RecipeId, SkillId, ZoneId, BuffId } from '../domain/ids';
+import { asBuffId, asClassId, asItemId, asNodeId, asProfessionId, asQuestId, asRecipeId, asSkillId, asZoneId } from '../domain/ids';
+import type { CharacterState } from '../domain/character';
+import { addSilver, applyExperience, experienceToNextLevel } from '../domain/character';
+import { Inventory, type AddResult } from '../domain/inventory';
+import { Equipment, emptyEquipment, type EquipmentSlotId, type EquipError } from '../domain/equipment';
+import { ZERO_ATTRIBUTES, ZERO_POWER, addAttributes, addPower, deriveStats, type Attributes, type PowerStats } from '../domain/attributes';
+import { makeStack, type ItemStack } from '../domain/item-instance';
+import type { CombatConfig, CombatEvent, CombatState, PlayerCombatInput, MonsterCombatInput } from '../domain/combat';
+import { DEFAULT_COMBAT_CONFIG, newCombatState, tickCombat } from '../domain/combat';
+import { rollLoot } from '../domain/combat/loot';
+import type { EnhancementCategory, EnhancementHistoryEntry, EnhancementPreview, EnhancementResult } from '../domain/enhancement/types';
+import { attemptEnhancement, pushHistory } from '../domain/enhancement/engine';
+import { enhancedAttributes, enhancedPower } from '../domain/enhancement/bonus';
+import { sumEnhancementBonuses } from '../domain/enhancement/bonus';
+import type { ActivityState, ProfessionState, ToolSnapshot, ToolRequirement } from '../domain/lifeskill/types';
+import { evaluateToolRequirement, newProfessionState } from '../domain/lifeskill/types';
+import { effectiveActionTimeMs, performGatherAction } from '../domain/lifeskill/gathering';
+import { consumeInputs, rollOutputs, validateRecipe, type ProductionCheck } from '../domain/lifeskill/production';
+import { addProfessionExperience, masteryYieldMultiplier } from '../domain/lifeskill/profession';
+import { BuffManager } from '../domain/buff/engine';
+import type { ActiveBuff, BuffKind, ApplyResult } from '../domain/buff/types';
+import { plantCrop, harvestCrop, getPlot, isReady, growthProgress } from '../domain/agriculture/engine';
+import type { FarmState, FarmPlot } from '../domain/agriculture/types';
+import { newFarmState, DEFAULT_PLOT_COUNT } from '../domain/agriculture/types';
+import { TransactionLedger } from '../domain/economy/ledger';
+import type { EconomyMetrics, Transaction, TransactionCategory } from '../domain/economy/types';
+import { findShopEntry, npcBuybackPrice, NPC_SHOP } from '../data/npc-shop.data';
+import type { NpcShopEntry } from '../data/npc-shop.data';
+import type {
+  SaveLatest, CharacterSnapshotV1, EquipmentSnapshot, InventorySnapshot,
+  CombatSnapshot, CombatConfigSnapshot, EnhancementHistorySnapshot, ItemStackSnapshot,
+  ProfessionStateSnapshot, ActivitySnapshot, FarmPlotSnapshot,
+} from '../persistence/save-schema';
+import { DEMO_STARTING_INVENTORY } from '../data/demo-content';
+import type { IdleSetup, IdleReport, IdleConfig } from '../domain/idle/types';
+import { MAX_OFFLINE_MS } from '../domain/idle/types';
+import { SeededRng, deriveSeed } from '../domain/idle/rng';
+import { simulateCombat, type CombatIdleMonster } from '../domain/idle/combat';
+import { simulateGathering } from '../domain/idle/gathering';
+import { simulateProduction } from '../domain/idle/production';
+import { computeDamage } from '../domain/combat/damage';
+import type { TutorialState, TutorialStep } from '../domain/tutorial/types';
+import { newTutorialState, currentStep, applyTutorialEvent, markRewardClaimed, type TriggerEvent } from '../domain/tutorial/engine';
+import { TUTORIAL_STEPS } from '../data/tutorial.data';
+import type { QuestState, QuestEvent } from '../domain/quests/types';
+import { newQuestStates, evaluateAvailability, acceptQuest, applyQuestEvent, claimReward, listByStatus } from '../domain/quests/engine';
+import { QUESTS } from '../data/quests.data';
+
+
+const PLAYER_ATTACK_INTERVAL_MS = 1000;
+const PLAYER_RESOURCE_REGEN_PER_SEC = 3;
+const MAX_TICK_MS = 10 * 60 * 1000;
+const MAX_SIM_CYCLES_PER_TICK = 500;
+const DEFEAT_RECOVERY_MS = 5000;
+const LOG_CAPACITY = 12;
+const HISTORY_CAPACITY = 10;
+
+export type ServiceEvent =
+  | { readonly type: 'character-changed' }
+  | { readonly type: 'inventory-changed' }
+  | { readonly type: 'equipment-changed' }
+  | { readonly type: 'combat-changed' }
+  | { readonly type: 'enhancement-changed' }
+  | { readonly type: 'lifeskill-changed' }
+  | { readonly type: 'buff-changed' }
+  | { readonly type: 'farm-changed' }
+  | { readonly type: 'idle-changed' }
+  | { readonly type: 'tutorial-changed' }
+  | { readonly type: 'quest-changed' }
+  | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
+
+export interface CombatSessionInfo {
+  readonly zoneId: ZoneId; readonly monsterId: MonsterId; readonly monsterName: string;
+  readonly monsterHp: number; readonly monsterMaxHp: number;
+  readonly outcome: 'ongoing' | 'victory' | 'defeat';
+  readonly kills: number; readonly totalXp: number; readonly totalSilver: number;
+  readonly loot: ReadonlyMap<ItemId, number>;
+  readonly log: readonly CombatEvent[];
+  readonly pausedUntilMs: number;
+}
+
+export interface LifeskillSessionInfo {
+  readonly kind: 'gathering' | 'production';
+  readonly targetId: string; readonly targetName: string;
+  readonly professionId: ProfessionId;
+  readonly startedAt: number; readonly cycleMs: number;
+  readonly batches: number; readonly completedActions: number;
+  readonly expectedEndAt: number;
+}
+
+export interface FarmPlotInfo {
+  readonly id: number;
+  readonly cropNodeId: NodeId | null;
+  readonly cropName: string | null;
+  readonly plantedAt: number;
+  readonly readyAt: number;
+  readonly ready: boolean;
+  readonly progress: number;
+}
+
+type Listener = (event: ServiceEvent) => void;
+
+export class GameServices {
+  private readonly listeners = new Set<Listener>();
+  private character: CharacterState;
+  private inventory: Inventory;
+  private equipment: Equipment;
+  private combatState: CombatState | null = null;
+  private currentZoneId: ZoneId | null = null;
+  private currentMonsterId: MonsterId | null = null;
+  private currentMonsterMaxHp = 0;
+  private pausedUntilMs = 0;
+  private sessionKills = 0;
+  private sessionXp = 0;
+  private sessionSilver = 0;
+  private sessionLoot = new Map<ItemId, number>();
+  private combatLog: CombatEvent[] = [];
+  private combatConfig: CombatConfig = DEFAULT_COMBAT_CONFIG;
+  private enhancementHistory: readonly EnhancementHistoryEntry[] = [];
+  private professionStates = new Map<ProfessionId, ProfessionState>();
+  private activity: ActivityState | null = null;
+  private buffs: BuffManager;
+  private farm: FarmState;
+  private warehouse: Inventory;
+  private ledger: TransactionLedger;
+  private idleSetup: IdleSetup | null = null;
+  private lastIdleReport: IdleReport | null = null;
+  private tutorial: TutorialState;
+  private questStates: QuestState[];
+  private rng: () => number;
+
+  constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
+    this.rng = rng;
+    this.character = characterFromSnapshot(save.character);
+    this.inventory = inventoryFromSnapshot(save.inventory);
+    this.equipment = equipmentFromSnapshot(save.equipment);
+    this.combatConfig = configFromSnapshot(save.combatConfig);
+    this.enhancementHistory = historyFromSnapshot(save.enhancementHistory);
+    this.professionStates = professionsFromSnapshot(save.professionStates);
+    this.activity = activityFromSnapshot(save.activity);
+    this.buffs = BuffManager.fromSnapshot(
+      save.buffs.map((b) => ({ buffId: asBuffId(b.buffId), kind: b.kind as BuffKind, magnitude: b.magnitude, appliedAt: b.appliedAt, expiresAt: b.expiresAt })),
+      Date.now(),
+    );
+    this.farm = farmFromSnapshot(save.farm);
+    this.warehouse = inventoryFromSnapshot(save.warehouse);
+    this.ledger = TransactionLedger.fromSnapshot(save.transactions.map((t) => ({
+      id: t.id,
+      category: t.category as TransactionCategory,
+      silverDelta: t.silverDelta,
+      itemDeltas: t.itemDeltas.map((d) => ({ itemId: asItemId(d.itemId), delta: d.delta })),
+      label: t.label,
+      timestamp: t.timestamp,
+    })));
+    this.idleSetup = idleSetupFromSnapshot(save.idleSetup);
+    this.lastIdleReport = idleReportFromSnapshot(save.lastIdleReport);
+    this.tutorial = save.tutorial
+      ? { entries: save.tutorial.entries.map((e) => ({ stepId: e.stepId, completed: e.completed, currentCount: e.currentCount, completedAt: e.completedAt })), rewardClaimed: save.tutorial.rewardClaimed }
+      : newTutorialState(TUTORIAL_STEPS);
+    this.questStates = save.quests.length > 0
+      ? save.quests.map((q) => ({
+          questId: asQuestId(q.questId),
+          status: q.status as QuestState['status'],
+          progress: q.progress.map((p) => ({ objectiveId: p.objectiveId, currentCount: p.currentCount })),
+          startedAt: q.startedAt,
+          completedAt: q.completedAt,
+          rewardClaimed: q.rewardClaimed,
+        }))
+      : newQuestStates(QUESTS);
+    // Avaliar disponibilidade logo no arranque (com base no nivel atual)
+    this.questStates = evaluateAvailability(this.questStates, QUESTS, this.character.level);
+    this.ensureAllProfessions();
+    this.repairLegacyTools();
+    this.ensureStartingTools();
+    this.ensureStartingSeeds();
+  }
+
+  static createInitial(registry: ContentRegistry, rng: () => number = Math.random): GameServices {
+    const now = Date.now();
+    const classDef = registry.getClass(asClassId('class.ferrumancer'));
+    const baseAttrs = classDef?.attributes ?? ZERO_ATTRIBUTES;
+    const derived = deriveStats(baseAttrs, ZERO_POWER);
+
+    const character: CharacterState = {
+      id: 'local', name: 'Aventureiro', classId: asClassId('class.ferrumancer'),
+      createdAt: now, level: 1, experience: 0, silver: 500,
+      progressionPoints: 0, hp: derived.maxHp, resource: derived.maxResource,
+      unlocks: new Set(),
+    };
+
+    const inventory = new Inventory(40);
+    for (const entry of DEMO_STARTING_INVENTORY) {
+      const itemId = asItemId(entry.itemId);
+      const def = registry.getItem(itemId);
+      if (!def) continue;
+      const durability = isTool(def) ? def.maxDurability : null;
+      inventory.add(itemId, entry.quantity, def.maxStack, 0, durability);
+    }
+
+    return new GameServices(registry, {
+      schemaVersion: 12,
+      savedAt: now,
+      character: characterToSnapshot(character),
+      inventory: inventoryToSnapshot(inventory),
+      warehouse: { capacity: 100, slots: [] },
+      equipment: equipmentToSnapshot(emptyEquipment()),
+      combat: null,
+      combatConfig: { autoMode: true, useSkills: true, strategy: 'aggressive', skillPriority: [] },
+      enhancementHistory: [],
+      professionStates: {},
+      activity: null,
+      buffs: [],
+      farm: farmToSnapshot(newFarmState(DEFAULT_PLOT_COUNT)),
+      transactions: [],
+      idleSetup: null,
+      lastIdleReport: null,
+      tutorial: null,
+      quests: [],
+    }, rng);
+  }
+
+  subscribe(listener: Listener): () => void {
+    this.listeners.add(listener);
+    return () => { this.listeners.delete(listener); };
+  }
+
+  private emit(event: ServiceEvent): void { for (const l of this.listeners) l(event); }
+
+  getCharacter(): CharacterState { return this.character; }
+  getInventory(): Inventory { return this.inventory; }
+  getEquipment(): Equipment { return this.equipment; }
+  getCombatConfig(): CombatConfig { return this.combatConfig; }
+  getEnhancementHistory(): readonly EnhancementHistoryEntry[] { return this.enhancementHistory; }
+  getExperienceToNext(): number { return experienceToNextLevel(this.character.level); }
+
+  getProfessionState(id: ProfessionId): ProfessionState {
+    return this.professionStates.get(id) ?? newProfessionState();
+  }
+
+  /* ==================== BUFFS ==================== */
+
+  getActiveBuffs(): readonly ActiveBuff[] { return this.buffs.list(); }
+
+  applyBuffById(buffId: BuffId, nowMs: number): ApplyResult | null {
+    const def = this.registry.getBuff(buffId);
+    if (!def) return null;
+    const result = this.buffs.apply(def, nowMs);
+    this.emit({ type: 'buff-changed' });
+    return result;
+  }
+
+  consumeItem(slotIndex: number): boolean {
+    const slot = this.inventory.list()[slotIndex];
+    if (!slot) return false;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def) return false;
+    if (def.appliesBuffId === null) {
+      this.emit({ type: 'notice', message: def.name + ' nao tem efeito.', level: 'warn' });
+      return false;
+    }
+    const consumed = this.inventory.remove(slot.itemId, 1);
+    if (consumed.removed !== 1) return false;
+    const buffDef = this.registry.getBuff(def.appliesBuffId);
+    if (!buffDef) {
+      this.inventory.add(slot.itemId, 1, def.maxStack, 0);
+      return false;
+    }
+    const result = this.buffs.apply(buffDef, Date.now());
+    if (!result.applied) {
+      this.inventory.add(slot.itemId, 1, def.maxStack, 0);
+      this.emit({ type: 'notice', message: result.reason ?? 'Nao foi possivel aplicar o buff.', level: 'warn' });
+      return false;
+    }
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'buff-changed' });
+    this.emit({ type: 'notice', message: result.refreshed ? def.name + ' renovado.' : def.name + ' aplicado.', level: 'info' });
+    return true;
+  }
+
+  private buffModifier(kind: BuffKind): number { return this.buffs.modifier(kind); }
+
+  /* ==================== AGRICULTURA ==================== */
+
+  getFarm(): readonly FarmPlotInfo[] {
+    const now = Date.now();
+    return this.farm.plots.map((p) => {
+      const node = p.cropNodeId ? this.registry.getNode(p.cropNodeId) : null;
+      return {
+        id: p.id,
+        cropNodeId: p.cropNodeId,
+        cropName: node?.name ?? null,
+        plantedAt: p.plantedAt,
+        readyAt: p.readyAt,
+        ready: isReady(p, now),
+        progress: growthProgress(p, now),
+      };
+    });
+  }
+
+  plantSeed(seedSlotIndex: number, plotId: number): boolean {
+    const slot = this.inventory.list()[seedSlotIndex];
+    if (!slot) return false;
+    const seedDef = this.registry.getItem(slot.itemId);
+    if (!seedDef || !isSeed(seedDef)) {
+      this.emit({ type: 'notice', message: 'Esse item nao e uma semente.', level: 'warn' });
+      return false;
+    }
+    const cropNodeId = seedDef.seedForNodeId;
+    if (!cropNodeId) return false;
+    const cropNode = this.registry.getNode(cropNodeId);
+    if (!cropNode) return false;
+    const profState = this.getProfessionState(cropNode.professionId);
+    if (profState.level < cropNode.requiredLevel) {
+      this.emit({ type: 'notice', message: 'Requer nivel ' + cropNode.requiredLevel + ' em Agricultura.', level: 'warn' });
+      return false;
+    }
+    const consumed = this.inventory.removeAt(seedSlotIndex);
+    if (!consumed) return false;
+    const now = Date.now();
+    const readyAt = now + cropNode.baseTimeMs;
+    const result = plantCrop(this.farm, plotId, cropNodeId, readyAt, now);
+    if (result.error) {
+      this.inventory.setAt(seedSlotIndex, consumed);
+      this.emit({ type: 'notice', message: 'Erro: ' + result.error + '.', level: 'warn' });
+      return false;
+    }
+    this.farm = result.state;
+    this.triggerTutorial({ kind: 'plant-crop', targetId: null, amount: 1 });
+    this.triggerQuest({ kind: 'plant-crop', targetId: null, amount: 1 });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'farm-changed' });
+    this.emit({ type: 'notice', message: 'Plantado em parcela ' + (plotId + 1) + '.', level: 'info' });
+    return true;
+  }
+
+  harvestPlot(plotId: number): boolean {
+    const now = Date.now();
+    const result = harvestCrop(this.farm, plotId, now);
+    if (result.error || !result.nodeId) {
+      const msg = result.error === 'not-ready' ? 'Ainda nao esta pronto.'
+        : result.error === 'plot-empty' ? 'Parcela vazia.'
+        : 'Erro ao colher.';
+      this.emit({ type: 'notice', message: msg, level: 'warn' });
+      return false;
+    }
+    const node = this.registry.getNode(result.nodeId);
+    if (!node) return false;
+    const profState = this.getProfessionState(node.professionId);
+    const yieldBonus = 1 + this.buffModifier('gather-yield');
+    const drops = node.loot.map((e) => {
+      const span = e.maxQuantity - e.minQuantity + 1;
+      const qty = Math.floor((e.minQuantity + Math.floor(this.rng() * span)) * yieldBonus);
+      return { itemId: e.itemId, quantity: Math.max(1, qty) };
+    });
+    for (const d of drops) {
+      const def = this.registry.getItem(d.itemId);
+      if (!def) continue;
+      this.inventory.add(d.itemId, d.quantity, def.maxStack, 0);
+    }
+    const prof = this.registry.getProfession(node.professionId);
+    if (prof) {
+      const lr = addProfessionExperience(profState, node.baseExp, prof.maxLevel, prof.masteryPerLevel);
+      this.professionStates.set(node.professionId, lr.state);
+      if (lr.levelsGained > 0) this.emit({ type: 'notice', message: prof.name + ' subiu para nivel ' + lr.state.level + '!', level: 'info' });
+    }
+    this.farm = result.state;
+    this.triggerTutorial({ kind: 'harvest-crop', targetId: null, amount: 1 });
+    this.triggerQuest({ kind: 'harvest-crop', targetId: null, amount: 1 });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'farm-changed' });
+    this.emit({ type: 'notice', message: 'Colheita: ' + node.name + '.', level: 'info' });
+    return true;
+  }
+
+  /* ==================== LIFESKILLS ==================== */
+
+  getActivity(): LifeskillSessionInfo | null {
+    if (!this.activity) return null;
+    if (this.activity.kind === 'gathering') {
+      const node = this.registry.getNode(this.activity.targetId as NodeId);
+      if (!node) return null;
+      return {
+        kind: 'gathering', targetId: node.id, targetName: node.name,
+        professionId: node.professionId, startedAt: this.activity.startedAt,
+        cycleMs: this.activity.cycleMs, batches: this.activity.batches,
+        completedActions: this.activity.completedActions,
+        expectedEndAt: this.activity.startedAt + this.activity.cycleMs * this.activity.batches,
+      };
+    }
+    const recipe = this.registry.getRecipe(this.activity.targetId as RecipeId);
+    if (!recipe) return null;
+    return {
+      kind: 'production', targetId: recipe.id, targetName: recipe.name,
+      professionId: recipe.professionId, startedAt: this.activity.startedAt,
+      cycleMs: this.activity.cycleMs, batches: this.activity.batches,
+      completedActions: this.activity.completedActions,
+      expectedEndAt: this.activity.startedAt + this.activity.cycleMs * this.activity.batches,
+    };
+  }
+
+  getEquippedTool(): ToolSnapshot | null {
+    const stack = this.equipment.get('tool');
+    if (!stack) return null;
+    const def = this.registry.getItem(stack.itemId);
+    if (!def || !def.toolCategory) return null;
+    return {
+      toolCategory: def.toolCategory,
+      enhancementLevel: stack.enhancementLevel,
+      durability: stack.durability ?? 0,
+      maxDurability: def.maxDurability,
+    };
+  }
+
+  canGatherAt(nodeId: NodeId): { ok: boolean; reason: string | null; tool: ToolSnapshot | null; requirement: ToolRequirement } {
+    const node = this.registry.getNode(nodeId);
+    if (!node) return { ok: false, reason: 'No desconhecido.', tool: null, requirement: evaluateToolRequirement(null, null) };
+    if (node.kind === 'crop') return { ok: false, reason: 'Usa a Agricultura para culturas.', tool: null, requirement: evaluateToolRequirement(null, null) };
+    const profState = this.getProfessionState(node.professionId);
+    const tool = this.getEquippedTool();
+    const requirement = evaluateToolRequirement(node.requiredTool, tool);
+    if (profState.level < node.requiredLevel) {
+      const profName = this.registry.getProfession(node.professionId)?.name ?? 'profissao';
+      return { ok: false, reason: 'Requer nivel ' + node.requiredLevel + ' em ' + profName + '.', tool, requirement };
+    }
+    if (!requirement.matches) {
+      const reqName = node.requiredTool ?? '-';
+      return { ok: false, reason: requirement.present ? 'Requer ferramenta: ' + reqName + '.' : 'Equipa uma ferramenta: ' + reqName + '.', tool, requirement };
+    }
+    if (node.requiredTool && requirement.durability !== null && requirement.durability <= 0) {
+      return { ok: false, reason: 'Ferramenta sem durabilidade.', tool, requirement };
+    }
+    return { ok: true, reason: null, tool, requirement };
+  }
+
+  startGathering(nodeId: NodeId, batches: number): boolean {
+    if (this.activity) { this.emit({ type: 'notice', message: 'Ja existe uma atividade em curso.', level: 'warn' }); return false; }
+    if (this.combatState) { this.emit({ type: 'notice', message: 'Termina o combate primeiro.', level: 'warn' }); return false; }
+    if (!Number.isInteger(batches) || batches <= 0 || batches > 100) {
+      this.emit({ type: 'notice', message: 'Numero de acoes invalido.', level: 'warn' }); return false;
+    }
+    const check = this.canGatherAt(nodeId);
+    if (!check.ok) { this.emit({ type: 'notice', message: check.reason ?? 'Nao pode recolher.', level: 'warn' }); return false; }
+    const node = this.registry.getNode(nodeId);
+    if (!node) return false;
+    const profState = this.getProfessionState(node.professionId);
+    const speedBonus = this.buffModifier('gather-speed');
+    const adjustedBase = Math.max(200, node.baseTimeMs * (1 - speedBonus));
+    const cycleMs = effectiveActionTimeMs(adjustedBase, profState.mastery, check.tool);
+    this.activity = {
+      kind: 'gathering', targetId: nodeId, startedAt: Date.now(),
+      cycleMs, batches, completedActions: 0, expectedActions: batches,
+      endsAt: Date.now() + cycleMs * batches,
+    };
+    this.emit({ type: 'lifeskill-changed' });
+    this.emit({ type: 'notice', message: 'A recolher em ' + node.name + '.', level: 'info' });
+    return true;
+  }
+
+  validateRecipeForPlayer(recipeId: RecipeId, batches: number): ProductionCheck | null {
+    const recipe = this.registry.getRecipe(recipeId);
+    if (!recipe) return null;
+    const profState = this.getProfessionState(recipe.professionId);
+    if (profState.level < recipe.requiredLevel) {
+      const profName = this.registry.getProfession(recipe.professionId)?.name ?? '';
+      return { canStart: false, missingInputs: [], missingSilver: 0, reason: 'Requer nivel ' + recipe.requiredLevel + ' em ' + profName + '.' };
+    }
+    const bag = { count: (itemId: ItemId) => this.inventory.count(itemId), consume: () => false };
+    const wallet = { silver: () => this.character.silver, spendSilver: () => false };
+    return validateRecipe(recipe, batches, bag, wallet);
+  }
+
+  startProduction(recipeId: RecipeId, batches: number): boolean {
+    if (this.activity) { this.emit({ type: 'notice', message: 'Ja existe uma atividade em curso.', level: 'warn' }); return false; }
+    if (this.combatState) { this.emit({ type: 'notice', message: 'Termina o combate primeiro.', level: 'warn' }); return false; }
+    const recipe = this.registry.getRecipe(recipeId);
+    if (!recipe) { this.emit({ type: 'notice', message: 'Receita desconhecida.', level: 'error' }); return false; }
+    const check = this.validateRecipeForPlayer(recipeId, batches);
+    if (!check || !check.canStart) { this.emit({ type: 'notice', message: check?.reason ?? 'Receita invalida.', level: 'warn' }); return false; }
+    const bag = {
+      count: (itemId: ItemId) => this.inventory.count(itemId),
+      consume: (itemId: ItemId, qty: number) => this.inventory.remove(itemId, qty).removed === qty,
+    };
+    const wallet = {
+      silver: () => this.character.silver,
+      spendSilver: (amount: number) => {
+        if (this.character.silver < amount) return false;
+        this.character = { ...this.character, silver: this.character.silver - amount };
+        return true;
+      },
+    };
+    if (!consumeInputs(recipe, batches, bag, wallet)) {
+      this.emit({ type: 'notice', message: 'Erro ao consumir materiais.', level: 'error' }); return false;
+    }
+    const profState = this.getProfessionState(recipe.professionId);
+    const speedBonus = this.buffModifier('craft-speed');
+    const cycleMs = Math.max(200, Math.floor(recipe.baseTimeMs * (1 - Math.min(0.4, profState.mastery * 0.001)) * (1 - speedBonus)));
+    this.activity = {
+      kind: 'production', targetId: recipeId, startedAt: Date.now(),
+      cycleMs, batches, completedActions: 0, expectedActions: batches,
+      endsAt: Date.now() + cycleMs * batches,
+    };
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'lifeskill-changed' });
+    this.emit({ type: 'notice', message: 'A produzir: ' + recipe.name + ' x' + batches + '.', level: 'info' });
+    return true;
+  }
+
+  cancelActivity(): void {
+    if (!this.activity) return;
+    const msg = this.activity.kind === 'gathering' ? 'Recolha cancelada.' : 'Producao cancelada. Materiais nao usados foram perdidos.';
+    this.activity = null;
+    this.emit({ type: 'lifeskill-changed' });
+    this.emit({ type: 'notice', message: msg, level: 'warn' });
+  }
+
+  tickLifeskill(nowMs: number): void {
+    const act = this.activity;
+    if (!act) return;
+    const elapsed = nowMs - act.startedAt;
+    if (elapsed < 0) return;
+    const cyclesElapsed = Math.floor(elapsed / act.cycleMs);
+    const target = Math.min(cyclesElapsed, act.batches);
+    let processed = 0;
+    let completed = act.completedActions;
+    let activityEnded = false;
+    while (completed < target && processed < MAX_SIM_CYCLES_PER_TICK) {
+      const ok = this.runOneCycle(act);
+      completed += 1;
+      processed += 1;
+      if (!ok) { activityEnded = true; break; }
+    }
+    this.activity = { ...act, completedActions: completed };
+    if (completed >= act.batches || activityEnded) {
+      this.activity = null;
+      this.emit({ type: 'lifeskill-changed' });
+      this.emit({ type: 'notice', message: 'Atividade concluida.', level: 'info' });
+    } else if (processed > 0) {
+      this.emit({ type: 'lifeskill-changed' });
+    }
+  }
+
+  private runOneCycle(act: ActivityState): boolean {
+    if (act.kind === 'gathering') {
+      const node = this.registry.getNode(act.targetId as NodeId);
+      if (!node) return false;
+      const tool = this.getEquippedTool();
+      const profState = this.getProfessionState(node.professionId);
+      const yieldBonus = this.buffModifier('gather-yield') + this.getGatherYieldBonus();
+      const yieldResult = performGatherAction({
+        node, tool, mastery: profState.mastery, professionLevel: profState.level, rng: this.rng,
+      });
+      if (!yieldResult) return false;
+      for (const d of yieldResult.drops) {
+        const qty = yieldBonus > 0 ? Math.max(d.quantity, Math.floor(d.quantity * (1 + yieldBonus))) : d.quantity;
+        const def = this.registry.getItem(d.itemId);
+        if (!def) continue;
+        this.inventory.add(d.itemId, qty, def.maxStack, 0);
+      }
+      if (tool && yieldResult.durabilityCost > 0) {
+        const current = this.equipment.get('tool');
+        if (current && current.durability !== null) {
+          const nextDur = Math.max(0, current.durability - yieldResult.durabilityCost);
+          this.equipment.setSlot('tool', { ...current, durability: nextDur });
+          if (nextDur === 0) this.emit({ type: 'notice', message: 'Ferramenta sem durabilidade.', level: 'warn' });
+        }
+      }
+      const prof = this.registry.getProfession(node.professionId);
+      if (prof) {
+        const lr = addProfessionExperience(profState, yieldResult.expGained, prof.maxLevel, prof.masteryPerLevel);
+        this.professionStates.set(node.professionId, lr.state);
+        if (lr.levelsGained > 0) this.emit({ type: 'notice', message: prof.name + ' subiu para nivel ' + lr.state.level + '!', level: 'info' });
+      }
+      this.triggerTutorial({ kind: 'gather-node', targetId: node.id as string, amount: 1 });
+      this.triggerQuest({ kind: 'gather-node', targetId: node.id as string, amount: 1 });
+      this.emit({ type: 'inventory-changed' });
+      this.emit({ type: 'equipment-changed' });
+      return true;
+    }
+    const recipe = this.registry.getRecipe(act.targetId as RecipeId);
+    if (!recipe) return false;
+    const profState = this.getProfessionState(recipe.professionId);
+    const yieldMult = masteryYieldMultiplier(profState.mastery);
+    const outputs = rollOutputs(recipe.outputs, 1, this.rng, yieldMult);
+    for (const o of outputs) {
+      const def = this.registry.getItem(o.itemId);
+      if (!def) continue;
+      const dur = isTool(def) ? def.maxDurability : null;
+      const res = this.inventory.add(o.itemId, o.quantity, def.maxStack, 0);
+      if (dur !== null && res.added > 0) {
+        const list = this.inventory.list();
+        for (let i = 0; i < list.length; i++) {
+          const s = list[i];
+          if (s && s.itemId === o.itemId && s.durability === null) {
+            this.inventory.setAt(i, { ...s, durability: dur });
+            break;
+          }
+        }
+      }
+    }
+    const prof = this.registry.getProfession(recipe.professionId);
+    if (prof) {
+      const lr = addProfessionExperience(profState, recipe.baseExp, prof.maxLevel, prof.masteryPerLevel);
+      this.professionStates.set(recipe.professionId, lr.state);
+      if (lr.levelsGained > 0) this.emit({ type: 'notice', message: prof.name + ' subiu para nivel ' + lr.state.level + '!', level: 'info' });
+    }
+    this.triggerTutorial({ kind: 'craft-recipe', targetId: recipe.id as string, amount: 1 });
+    this.triggerQuest({ kind: 'craft-recipe', targetId: recipe.id as string, amount: 1 });
+    this.emit({ type: 'inventory-changed' });
+    return true;
+  }
+
+  /* ==================== Combate ==================== */
+
+  startCombat(zoneId: ZoneId): boolean {
+    if (this.activity) { this.emit({ type: 'notice', message: 'Termina a atividade atual primeiro.', level: 'warn' }); return false; }
+    const zone = this.registry.getZone(zoneId);
+    if (!zone) { this.emit({ type: 'notice', message: 'Zona desconhecida.', level: 'error' }); return false; }
+    if (this.character.level < zone.minLevel) { this.emit({ type: 'notice', message: 'Requer nivel ' + zone.minLevel + '.', level: 'warn' }); return false; }
+    this.triggerTutorial({ kind: 'enter-zone', targetId: zoneId as string, amount: 1 });
+    this.triggerQuest({ kind: 'enter-zone', targetId: zoneId as string, amount: 1 });
+    this.currentZoneId = zoneId;
+    this.sessionKills = 0; this.sessionXp = 0; this.sessionSilver = 0;
+    this.sessionLoot = new Map(); this.combatLog = []; this.pausedUntilMs = 0;
+    this.spawnNextMonster(Date.now());
+    this.emit({ type: 'combat-changed' });
+    return true;
+  }
+
+  stopCombat(): void {
+    this.combatState = null; this.currentZoneId = null; this.currentMonsterId = null;
+    this.combatLog = [];
+    this.emit({ type: 'combat-changed' });
+  }
+
+  setCombatConfig(patch: Partial<CombatConfig>): void {
+    this.combatConfig = { ...this.combatConfig, ...patch };
+    this.emit({ type: 'combat-changed' });
+  }
+
+  tickCombat(nowMs: number, deltaMs: number): void {
+    const expired = this.buffs.tick(nowMs);
+    if (expired.length > 0) this.emit({ type: 'buff-changed' });
+
+    if (!this.combatState || !this.currentZoneId || !this.currentMonsterId) return;
+    if (deltaMs <= 0) return;
+    const dt = Math.min(deltaMs, MAX_TICK_MS);
+    if (nowMs < this.pausedUntilMs) return;
+    if (this.combatState.outcome !== 'ongoing') { this.spawnNextMonster(nowMs); return; }
+    const monsterDef = this.registry.getMonster(this.currentMonsterId);
+    if (!monsterDef) { this.stopCombat(); return; }
+    const player = this.buildPlayerInput();
+    const monster = this.buildMonsterInput(monsterDef);
+    const result = tickCombat({ state: this.combatState, deltaMs: dt, player, monster, config: this.combatConfig, rng: this.rng });
+    this.combatState = result.state;
+
+    const hpRegen = this.buffModifier('hp-regen') * (dt / 1000);
+    const resRegen = this.buffModifier('resource-regen') * (dt / 1000);
+    if (hpRegen > 0 || resRegen > 0) {
+      this.combatState = {
+        ...this.combatState,
+        playerHp: Math.min(player.maxHp, this.combatState.playerHp + hpRegen),
+        playerResource: Math.min(player.maxResource, this.combatState.playerResource + resRegen),
+      };
+    }
+
+    for (const ev of result.events) this.combatLog.push(ev);
+    this.combatLog = this.combatLog.slice(-LOG_CAPACITY);
+    this.syncCharacterFromCombat();
+    if (result.state.outcome === 'victory') this.handleVictory(monsterDef, nowMs);
+    else if (result.state.outcome === 'defeat') this.handleDefeat(nowMs);
+    this.emit({ type: 'combat-changed' });
+  }
+
+  private buildPlayerInput(): PlayerCombatInput {
+    const d = this.getDerivedStats();
+    return {
+      attack: d.attack,
+      defense: d.defense,
+      critChance: d.criticalChance,
+      critDamageMultiplier: this.getCritDamageMultiplier(),
+      maxHp: d.maxHp, maxResource: d.maxResource,
+      resourceRegenPerSec: PLAYER_RESOURCE_REGEN_PER_SEC,
+      attackIntervalMs: PLAYER_ATTACK_INTERVAL_MS,
+      skills: this.getPlayerSkills(),
+    };
+  }
+
+  private buildMonsterInput(def: MonsterDefinition): MonsterCombatInput {
+    return { attack: def.attack, defense: def.defense, maxHp: def.maxHp, attackIntervalMs: def.attackIntervalMs };
+  }
+
+  private spawnNextMonster(nowMs: number): void {
+    if (!this.currentZoneId) return;
+    const zone = this.registry.getZone(this.currentZoneId);
+    if (!zone || zone.monsters.length === 0) { this.stopCombat(); return; }
+    const pick = zone.monsters[Math.floor(this.rng() * zone.monsters.length)];
+    if (!pick) { this.stopCombat(); return; }
+    const def = this.registry.getMonster(pick);
+    if (!def) { this.stopCombat(); return; }
+    this.currentMonsterId = pick;
+    this.currentMonsterMaxHp = def.maxHp;
+    const player = this.buildPlayerInput();
+    const monster = this.buildMonsterInput(def);
+    const startingHp = Math.max(1, Math.min(player.maxHp, this.character.hp));
+    const startingResource = Math.max(0, Math.min(player.maxResource, this.character.resource));
+    const base = newCombatState(nowMs, player, monster);
+    this.combatState = { ...base, playerHp: startingHp, playerResource: startingResource };
+    this.syncCharacterFromCombat();
+  }
+
+  private handleVictory(def: MonsterDefinition, nowMs: number): void {
+    this.sessionKills += 1;
+    const bonusXpMult = 1 + this.getExperienceBonus();
+    const bonusSilverMult = 1 + this.getSilverBonus();
+    const xpGain = Math.max(1, Math.floor(def.expReward * bonusXpMult));
+    const silverGain = Math.max(1, Math.floor(def.silverReward * bonusSilverMult));
+    this.sessionXp += xpGain;
+    this.sessionSilver += silverGain;
+    const drops = rollLoot(def.loot, this.rng);
+    const itemDeltas: { itemId: ItemId; delta: number }[] = [];
+    for (const drop of drops) {
+      const itemDef = this.registry.getItem(drop.itemId);
+      if (!itemDef) continue;
+      const before = this.inventory.count(drop.itemId);
+      const equippable = isEquippable(itemDef);
+      if (equippable) {
+        // Rolar atributos para cada instancia
+        for (let i = 0; i < drop.quantity; i++) {
+          const rolls = rollRandomAttributes(itemDef, RANDOM_ATTRIBUTES, this.rng);
+          this.inventory.add(drop.itemId, 1, itemDef.maxStack, 0, null, rolls.length > 0 ? rolls : null);
+        }
+      } else {
+        this.inventory.add(drop.itemId, drop.quantity, itemDef.maxStack, 0);
+      }
+      const gained = this.inventory.count(drop.itemId) - before;
+      if (gained > 0) {
+        this.sessionLoot.set(drop.itemId, (this.sessionLoot.get(drop.itemId) ?? 0) + gained);
+        itemDeltas.push({ itemId: drop.itemId, delta: gained });
+      }
+    }
+    const prevLevel = this.character.level;
+    this.character = applyExperience(this.character, xpGain).state;
+    this.character = addSilver(this.character, silverGain);
+    if (this.character.level > prevLevel) {
+      const derived = this.getDerivedStats();
+      this.character = { ...this.character, hp: derived.maxHp, resource: derived.maxResource };
+      this.emit({ type: 'notice', message: 'Subiste para nivel ' + this.character.level + '!', level: 'info' });
+      this.triggerTutorial({ kind: 'reach-level', targetId: null, amount: 1 });
+      this.triggerQuest({ kind: 'reach-level', targetId: null, amount: 1 });
+    }
+    this.ledger.record('combat', silverGain, itemDeltas, 'Abate: ' + def.name, nowMs);
+    this.triggerTutorial({ kind: 'kill-monster', targetId: def.id as string, amount: 1 });
+    this.triggerQuest({ kind: 'kill-monster', targetId: def.id as string, amount: 1 });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.spawnNextMonster(nowMs);
+  }
+
+  private handleDefeat(nowMs: number): void {
+    this.emit({ type: 'notice', message: 'Foste derrotado. Recuperas em alguns segundos.', level: 'warn' });
+    const derived = this.getDerivedStats();
+    this.character = { ...this.character, hp: derived.maxHp, resource: derived.maxResource };
+    this.combatState = null; this.currentMonsterId = null;
+    this.pausedUntilMs = nowMs + DEFEAT_RECOVERY_MS;
+    this.emit({ type: 'character-changed' });
+  }
+
+  private syncCharacterFromCombat(): void {
+    if (!this.combatState) return;
+    this.character = { ...this.character, hp: Math.round(this.combatState.playerHp), resource: Math.round(this.combatState.playerResource) };
+  }
+
+  getCombatSession(): CombatSessionInfo | null {
+    if (!this.combatState || !this.currentZoneId || !this.currentMonsterId) return null;
+    const m = this.registry.getMonster(this.currentMonsterId);
+    return {
+      zoneId: this.currentZoneId, monsterId: this.currentMonsterId,
+      monsterName: m?.name ?? 'Desconhecido',
+      monsterHp: Math.round(this.combatState.monsterHp),
+      monsterMaxHp: this.currentMonsterMaxHp,
+      outcome: this.combatState.outcome,
+      kills: this.sessionKills, totalXp: this.sessionXp, totalSilver: this.sessionSilver,
+      loot: this.sessionLoot, log: this.combatLog, pausedUntilMs: this.pausedUntilMs,
+    };
+  }
+
+  getCurrentPlayerHp(): number { return Math.round(this.combatState?.playerHp ?? this.character.hp); }
+  getCurrentPlayerResource(): number { return Math.round(this.combatState?.playerResource ?? this.character.resource); }
+
+  /* ==================== Inventario ==================== */
+
+  addItem(itemId: ItemId, quantity: number): AddResult {
+    const def = this.registry.getItem(itemId);
+    if (!def) { this.emit({ type: 'notice', message: 'Item desconhecido: ' + itemId, level: 'error' }); return { added: 0, leftover: quantity }; }
+    const dur = isTool(def) ? def.maxDurability : null;
+    const result = this.inventory.add(itemId, quantity, def.maxStack, 0, dur);
+    if (result.leftover > 0) this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+    if (result.added > 0) this.emit({ type: 'inventory-changed' });
+    return result;
+  }
+
+  removeItem(itemId: ItemId, quantity: number): number {
+    const r = this.inventory.remove(itemId, quantity);
+    if (r.removed > 0) this.emit({ type: 'inventory-changed' });
+    return r.removed;
+  }
+
+  splitSlot(slotIndex: number, quantity: number): boolean {
+    const err = this.inventory.split(slotIndex, quantity);
+    if (err) return false;
+    this.emit({ type: 'inventory-changed' });
+    return true;
+  }
+
+  moveSlot(fromIndex: number, toIndex: number): boolean {
+    const err = this.inventory.move(fromIndex, toIndex);
+    if (err) return false;
+    this.emit({ type: 'inventory-changed' });
+    return true;
+  }
+
+  /* ==================== Equipamento ==================== */
+
+  equipFromInventory(slotIndex: number): boolean {
+    const slot = this.inventory.list()[slotIndex];
+    if (!slot) return false;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def || !isEquippable(def)) return false;
+    if (this.character.level < def.requiredLevel) { this.emit({ type: 'notice', message: 'Requer nivel ' + def.requiredLevel + '.', level: 'warn' }); return false; }
+    const targetSlot = def.equipSlot;
+    if (targetSlot === null) return false;
+    const resolved = this.resolveSlot(targetSlot);
+    const occupied = this.equipment.get(resolved);
+    if (occupied) {
+      const currentDef = this.registry.getItem(occupied.itemId);
+      const leftover = this.inventory.add(occupied.itemId, 1, currentDef?.maxStack ?? 1, occupied.enhancementLevel, occupied.durability);
+      if (leftover.leftover > 0) { this.emit({ type: 'notice', message: 'Sem espaco para desequipar.', level: 'error' }); return false; }
+      this.equipment.unequip(resolved);
+    }
+    const removed = this.inventory.removeAt(slotIndex);
+    if (!removed) { this.emit({ type: 'notice', message: 'Erro ao remover.', level: 'error' }); return false; }
+    const err: EquipError | null = this.equipment.equip(resolved, makeStack(removed.itemId, 1, removed.enhancementLevel, removed.durability, removed.randomAttributes, removed.essences));
+    if (err) { this.inventory.setAt(slotIndex, removed); return false; }
+    this.clampPlayerStats();
+    this.triggerTutorial({ kind: 'equip-slot', targetId: resolved, amount: 1 });
+    this.triggerQuest({ kind: 'equip-slot', targetId: resolved, amount: 1 });
+    this.emit({ type: 'equipment-changed' });
+    this.emit({ type: 'inventory-changed' });
+    return true;
+  }
+
+  unequipToInventory(slotId: EquipmentSlotId): boolean {
+    const stack = this.equipment.get(slotId);
+    if (!stack) return false;
+    const def = this.registry.getItem(stack.itemId);
+    const leftover = this.inventory.add(stack.itemId, 1, def?.maxStack ?? 1, stack.enhancementLevel, stack.durability);
+    if (leftover.leftover > 0) { this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' }); return false; }
+    this.equipment.unequip(slotId);
+    this.clampPlayerStats();
+    this.emit({ type: 'equipment-changed' });
+    this.emit({ type: 'inventory-changed' });
+    return true;
+  }
+
+  private resolveSlot(slotId: EquipmentSlotId): EquipmentSlotId {
+    if (slotId === 'ring1' && this.equipment.get('ring1')) return 'ring2';
+    if (slotId === 'earring1' && this.equipment.get('earring1')) return 'earring2';
+    return slotId;
+  }
+
+  private clampPlayerStats(): void {
+    const d = this.getDerivedStats();
+    this.character = { ...this.character, hp: Math.min(this.character.hp, d.maxHp), resource: Math.min(this.character.resource, d.maxResource) };
+  }
+
+  private repairLegacyTools(): void {
+    const invList = this.inventory.list();
+    for (let i = 0; i < invList.length; i++) {
+      const s = invList[i];
+      if (!s) continue;
+      const def = this.registry.getItem(s.itemId);
+      if (!def || !isTool(def)) continue;
+      if (s.durability === null) this.inventory.setAt(i, { ...s, durability: def.maxDurability });
+    }
+    for (const [slotId, stack] of this.equipment.list()) {
+      const def = this.registry.getItem(stack.itemId);
+      if (!def || !isTool(def)) continue;
+      if (stack.durability === null) this.equipment.setSlot(slotId, { ...stack, durability: def.maxDurability });
+    }
+  }
+
+  private ensureStartingTools(): void {
+    const STARTING_TOOLS = ['item.tool.pickaxe', 'item.tool.axe', 'item.tool.sickle', 'item.tool.fishing-rod', 'item.tool.skin-knife'];
+    let hasAnyTool = false;
+    for (const stack of this.inventory.list()) {
+      if (!stack) continue;
+      const def = this.registry.getItem(stack.itemId);
+      if (def && isTool(def)) { hasAnyTool = true; break; }
+    }
+    if (!hasAnyTool) {
+      for (const stack of this.equipment.list().values()) {
+        const def = this.registry.getItem(stack.itemId);
+        if (def && isTool(def)) { hasAnyTool = true; break; }
+      }
+    }
+    if (hasAnyTool) return;
+    for (const id of STARTING_TOOLS) {
+      const itemId = asItemId(id);
+      const def = this.registry.getItem(itemId);
+      if (!def) continue;
+      this.inventory.add(itemId, 1, def.maxStack, 0, def.maxDurability);
+    }
+    this.emit({ type: 'notice', message: 'Ferramentas basicas restauradas.', level: 'info' });
+    this.emit({ type: 'inventory-changed' });
+  }
+
+  private ensureStartingSeeds(): void {
+    const STARTING_SEEDS = [
+      { itemId: 'item.seed.wheat', qty: 6 },
+      { itemId: 'item.seed.carrot', qty: 6 },
+      { itemId: 'item.seed.herb', qty: 4 },
+    ];
+    let hasAnySeed = false;
+    for (const stack of this.inventory.list()) {
+      if (!stack) continue;
+      const def = this.registry.getItem(stack.itemId);
+      if (def && def.seedForNodeId !== null) { hasAnySeed = true; break; }
+    }
+    if (hasAnySeed) return;
+    for (const s of STARTING_SEEDS) {
+      const itemId = asItemId(s.itemId);
+      const def = this.registry.getItem(itemId);
+      if (!def) continue;
+      this.inventory.add(itemId, s.qty, def.maxStack, 0);
+    }
+    this.emit({ type: 'notice', message: 'Sementes iniciais recebidas.', level: 'info' });
+    this.emit({ type: 'inventory-changed' });
+  }
+
+  buySeed(itemId: ItemId, quantity: number): boolean {
+    const SEED_PRICES: Record<string, number> = {
+      'item.seed.wheat': 15,
+      'item.seed.carrot': 18,
+      'item.seed.herb': 25,
+    };
+    const price = SEED_PRICES[itemId as string];
+    if (price === undefined) return false;
+    const def = this.registry.getItem(itemId);
+    if (!def) return false;
+    const total = price * quantity;
+    if (this.character.silver < total) {
+      this.emit({ type: 'notice', message: 'Prata insuficiente.', level: 'warn' });
+      return false;
+    }
+    const res = this.inventory.add(itemId, quantity, def.maxStack, 0);
+    if (res.added === 0) {
+      this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+      return false;
+    }
+    this.character = { ...this.character, silver: this.character.silver - total };
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: 'Compradas ' + res.added + 'x ' + def.name + '.', level: 'info' });
+    return true;
+  }
+
+  getSeedShop(): readonly { readonly itemId: ItemId; readonly name: string; readonly price: number }[] {
+    const SEED_PRICES: Record<string, number> = {
+      'item.seed.wheat': 15,
+      'item.seed.carrot': 18,
+      'item.seed.herb': 25,
+    };
+    const out: { itemId: ItemId; name: string; price: number }[] = [];
+    for (const [id, price] of Object.entries(SEED_PRICES)) {
+      const itemId = asItemId(id);
+      const def = this.registry.getItem(itemId);
+      if (def) out.push({ itemId, name: def.name, price });
+    }
+    return out;
+  }
+
+  /* ==================== Armazem ==================== */
+
+  getWarehouse(): Inventory { return this.warehouse; }
+
+  transferToWarehouse(slotIndex: number, quantity: number): boolean {
+    const slot = this.inventory.list()[slotIndex];
+    if (!slot) return false;
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > slot.quantity) return false;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def) return false;
+    const test = this.warehouse.add(slot.itemId, quantity, def.maxStack, slot.enhancementLevel, slot.durability);
+    if (test.added !== quantity) {
+      this.warehouse.remove(slot.itemId, test.added, slot.enhancementLevel);
+      this.emit({ type: 'notice', message: 'Armazem cheio.', level: 'warn' });
+      return false;
+    }
+    this.inventory.removeAt(slotIndex);
+    if (slot.quantity > quantity) this.inventory.setAt(slotIndex, { ...slot, quantity: slot.quantity - quantity });
+    this.ledger.record('warehouse', 0, [{ itemId: slot.itemId, delta: -quantity }], 'Para armazem: ' + def.name + ' x' + quantity, Date.now());
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'notice', message: 'Movido para armazem: ' + def.name + ' x' + quantity + '.', level: 'info' });
+    return true;
+  }
+
+  transferFromWarehouse(slotIndex: number, quantity: number): boolean {
+    const slot = this.warehouse.list()[slotIndex];
+    if (!slot) return false;
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > slot.quantity) return false;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def) return false;
+    const test = this.inventory.add(slot.itemId, quantity, def.maxStack, slot.enhancementLevel, slot.durability);
+    if (test.added !== quantity) {
+      this.inventory.remove(slot.itemId, test.added, slot.enhancementLevel);
+      this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+      return false;
+    }
+    this.warehouse.removeAt(slotIndex);
+    if (slot.quantity > quantity) this.warehouse.setAt(slotIndex, { ...slot, quantity: slot.quantity - quantity });
+    this.ledger.record('warehouse', 0, [{ itemId: slot.itemId, delta: quantity }], 'Do armazem: ' + def.name + ' x' + quantity, Date.now());
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'notice', message: 'Retirado do armazem: ' + def.name + ' x' + quantity + '.', level: 'info' });
+    return true;
+  }
+
+  /* ==================== Loja NPC ==================== */
+
+  getShopCatalog(): readonly NpcShopEntry[] { return NPC_SHOP; }
+
+  sellToNpc(slotIndex: number, quantity: number): boolean {
+    const slot = this.inventory.list()[slotIndex];
+    if (!slot) return false;
+    if (!Number.isInteger(quantity) || quantity <= 0 || quantity > slot.quantity) return false;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def) return false;
+    const unitPrice = npcBuybackPrice(def.sellPrice);
+    const totalSilver = unitPrice * quantity;
+    const removed = this.inventory.remove(slot.itemId, quantity, slot.enhancementLevel);
+    if (removed.removed !== quantity) return false;
+    this.character = addSilver(this.character, totalSilver);
+    this.ledger.record('sell', totalSilver, [{ itemId: slot.itemId, delta: -quantity }], 'Venda: ' + def.name + ' x' + quantity, Date.now());
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: 'Vendido: ' + def.name + ' x' + quantity + ' (+' + totalSilver + ' prata).', level: 'info' });
+    return true;
+  }
+
+  buyFromNpc(itemId: ItemId, quantity: number): boolean {
+    if (!Number.isInteger(quantity) || quantity <= 0) return false;
+    const entry = findShopEntry(itemId);
+    if (!entry) {
+      this.emit({ type: 'notice', message: 'Item nao disponivel na loja.', level: 'warn' });
+      return false;
+    }
+    const def = this.registry.getItem(itemId);
+    if (!def) return false;
+    const total = entry.buyPrice * quantity;
+    if (this.character.silver < total) {
+      this.emit({ type: 'notice', message: 'Prata insuficiente.', level: 'warn' });
+      return false;
+    }
+    const dur = isTool(def) ? def.maxDurability : null;
+    const added = this.inventory.add(itemId, quantity, def.maxStack, 0, dur);
+    if (added.added !== quantity) {
+      this.inventory.remove(itemId, added.added);
+      this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+      return false;
+    }
+    this.character = addSilver(this.character, -total);
+    this.triggerTutorial({ kind: 'buy-item', targetId: itemId as string, amount: 1 });
+    this.triggerQuest({ kind: 'buy-item', targetId: itemId as string, amount: 1 });
+    this.ledger.record('buy', -total, [{ itemId, delta: quantity }], 'Compra: ' + def.name + ' x' + quantity, Date.now());
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: 'Comprado: ' + def.name + ' x' + quantity + ' (-' + total + ' prata).', level: 'info' });
+    return true;
+  }
+
+  /* ==================== Metricas ==================== */
+
+  getMetrics(): EconomyMetrics { return this.ledger.metrics(); }
+
+  getRecentTransactions(limit: number = 20): readonly Transaction[] {
+    return this.ledger.list().slice(-limit).reverse();
+  }
+
+  /* ==================== Tutorial ==================== */
+
+  getTutorialState(): TutorialState { return this.tutorial; }
+
+  getCurrentTutorialStep(): TutorialStep | null {
+    return currentStep(this.tutorial, TUTORIAL_STEPS);
+  }
+
+  private triggerTutorial(event: TriggerEvent): void {
+    const before = this.tutorial;
+    const { state, newlyCompleted } = applyTutorialEvent(before, TUTORIAL_STEPS, event, Date.now());
+    if (state === before) return;
+    this.tutorial = state;
+
+    for (const step of newlyCompleted) {
+      // Recompensas
+      this.character = addSilver(this.character, step.rewardSilver);
+      if (step.rewardXp > 0) {
+        this.character = applyExperience(this.character, step.rewardXp).state;
+      }
+      this.tutorial = markRewardClaimed(this.tutorial, step.id);
+      this.emit({
+        type: 'notice',
+        message: 'Objetivo concluido: ' + step.title + ' (+' + step.rewardSilver + ' prata)',
+        level: 'info',
+      });
+    }
+
+    this.emit({ type: 'tutorial-changed' });
+    this.emit({ type: 'character-changed' });
+  }
+  /* ==================== Quests ==================== */
+
+  getAllQuests(): { state: QuestState; def: (typeof QUESTS)[number] }[] {
+    const out: { state: QuestState; def: (typeof QUESTS)[number] }[] = [];
+    for (const s of this.questStates) {
+      const def = QUESTS.find((d) => d.id === s.questId);
+      if (def) out.push({ state: s, def });
+    }
+    return out;
+  }
+
+  getQuestsByStatus(status: QuestState['status']) {
+    return listByStatus(this.questStates, QUESTS, status);
+  }
+
+  getQuestState(questId: string): QuestState | null {
+    return this.questStates.find((s) => s.questId === questId) ?? null;
+  }
+
+  acceptQuestById(questId: string): boolean {
+    const before = this.questStates;
+    this.questStates = acceptQuest(before, questId, Date.now());
+    if (this.questStates === before) return false;
+    this.emit({ type: 'quest-changed' });
+    this.emit({ type: 'notice', message: 'Missao aceite.', level: 'info' });
+    return true;
+  }
+
+  claimQuestReward(questId: string): boolean {
+    const state = this.questStates.find((s) => s.questId === questId);
+    if (!state || state.status !== 'completed' || state.rewardClaimed) return false;
+    const def = QUESTS.find((d) => d.id === questId);
+    if (!def) return false;
+
+    // Aplicar recompensas
+    this.character = addSilver(this.character, def.rewardSilver);
+    if (def.rewardXp > 0) {
+      const prevLevel = this.character.level;
+      this.character = applyExperience(this.character, def.rewardXp).state;
+      if (this.character.level > prevLevel) {
+        const d = this.getDerivedStats();
+        this.character = { ...this.character, hp: d.maxHp, resource: d.maxResource };
+      }
+    }
+    const itemDeltas: { itemId: ItemId; delta: number }[] = [];
+    for (const r of def.rewardItems) {
+      const itemDef = this.registry.getItem(r.itemId);
+      if (!itemDef) continue;
+      const dur = isTool(itemDef) ? itemDef.maxDurability : null;
+      this.inventory.add(r.itemId, r.quantity, itemDef.maxStack, 0, dur);
+      itemDeltas.push({ itemId: r.itemId, delta: r.quantity });
+    }
+    this.ledger.record('quest', def.rewardSilver, itemDeltas, 'Missao: ' + def.name, Date.now());
+
+    this.questStates = claimReward(this.questStates, questId);
+    // Reavaliar disponibilidade (o proximo pode ter ficado disponivel)
+    this.questStates = evaluateAvailability(this.questStates, QUESTS, this.character.level);
+
+    this.emit({ type: 'quest-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: 'Recompensa recebida: ' + def.name, level: 'info' });
+    return true;
+  }
+
+  private triggerQuest(event: QuestEvent): void {
+    const before = this.questStates;
+    const result = applyQuestEvent(before, QUESTS, event);
+    if (result.states === before) return;
+    this.questStates = result.states;
+
+    for (const questId of result.newlyCompleted) {
+      const def = QUESTS.find((d) => d.id === questId);
+      if (!def) continue;
+      this.emit({
+        type: 'notice',
+        message: 'Missao concluida: ' + def.name + ' (reclama recompensa)',
+        level: 'info',
+      });
+    }
+
+    // Reavaliar disponibilidade (o nivel pode ter subido)
+    this.questStates = evaluateAvailability(this.questStates, QUESTS, this.character.level);
+    this.emit({ type: 'quest-changed' });
+  }
+  /* ==================== Essencias (Fase 17) ==================== */
+
+  getEssenceBonuses() {
+    const items: ItemStack[] = [];
+    for (const stack of this.equipment.list().values()) items.push(stack);
+    const map = new Map<ItemId, EssenceDefinition>();
+    for (const e of ESSENCES) map.set(e.itemId, e);
+    const evolutionConfigs = new Map<string, import('../domain/essence/types').EssenceEvolutionConfig>();
+    for (const [k, v] of Object.entries(ESSENCE_EVOLUTION)) evolutionConfigs.set(k, v);
+    return sumEssenceBonuses(items, map, evolutionConfigs);
+  }
+
+  getEssenceDefinitions(): readonly EssenceDefinition[] {
+    return ESSENCES;
+  }
+
+  getEssenceDefinitionForItem(itemId: ItemId): EssenceDefinition | undefined {
+    return getEssenceByItemId(itemId as string);
+  }
+
+  getEssenceApplyCost(_essenceDef: EssenceDefinition): number {
+    return BALANCE.essence.applyCostPerTier;
+  }
+
+  getEssenceRemoveCost(essenceDef: EssenceDefinition): number {
+    return BALANCE.essence.removeCostPerTier * essenceDef.tier;
+  }
+
+  applyEssenceToEquipped(equipmentSlot: EquipmentSlotId, essenceSlotIndex: number, instance: EssenceInstance): boolean {
+    const stack = this.equipment.get(equipmentSlot);
+    if (!stack) { this.emit({ type: 'notice', message: 'Slot vazio.', level: 'warn' }); return false; }
+    const itemDef = this.registry.getItem(stack.itemId);
+    if (!itemDef) return false;
+    const essenceDef = getEssenceByItemId(instance.itemId as string);
+    if (!essenceDef) { this.emit({ type: 'notice', message: 'Item nao e uma essencia.', level: 'warn' }); return false; }
+
+    const cost = this.getEssenceApplyCost(essenceDef);
+    const invIndex = this.findInventorySlotMatching(instance.itemId, instance.level);
+    if (invIndex < 0) { this.emit({ type: 'notice', message: 'Essencia nao esta no inventario.', level: 'warn' }); return false; }
+
+    const result = applyEssence({
+      item: stack,
+      itemDef,
+      instance,
+      essenceDef,
+      slotIndex: essenceSlotIndex,
+      playerSilver: this.character.silver,
+      cost,
+    });
+    if (!result.ok || !result.newItem) {
+      this.emit({ type: 'notice', message: this.describeEssenceError(result.error), level: 'warn' });
+      return false;
+    }
+
+    const removed = this.inventory.removeAt(invIndex);
+    if (!removed) return false;
+    this.equipment.setSlot(equipmentSlot, result.newItem);
+    if (result.silverDelta) this.character = addSilver(this.character, result.silverDelta);
+    this.emit({ type: 'equipment-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: essenceDef.name + ' L' + instance.level + ' aplicada.', level: 'info' });
+    return true;
+  }
+  removeEssenceFromEquipped(equipmentSlot: EquipmentSlotId, essenceSlotIndex: number): boolean {
+    const stack = this.equipment.get(equipmentSlot);
+    if (!stack) return false;
+    const itemDef = this.registry.getItem(stack.itemId);
+    if (!itemDef) return false;
+    if (!stack.essences || !stack.essences[essenceSlotIndex]) {
+      this.emit({ type: 'notice', message: 'Sem essencia nesse slot.', level: 'warn' });
+      return false;
+    }
+    const current = stack.essences[essenceSlotIndex]!;
+    const essenceDef = getEssenceByItemId(current.itemId as string);
+    if (!essenceDef) return false;
+    const cost = this.getEssenceRemoveCost(essenceDef);
+
+    const test = this.inventory.add(current.itemId, 1, 1, 0, null, null, null, current.level);
+    if (test.added !== 1) {
+      this.inventory.remove(current.itemId, test.added);
+      this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+      return false;
+    }
+    this.inventory.remove(current.itemId, 1);
+
+    const result = removeEssence({
+      item: stack, itemDef, slotIndex: essenceSlotIndex,
+      playerSilver: this.character.silver, cost,
+    });
+    if (!result.ok || !result.newItem || !result.removedInstance) {
+      this.emit({ type: 'notice', message: this.describeEssenceError(result.error), level: 'warn' });
+      return false;
+    }
+
+    const addResult = this.inventory.add(
+      result.removedInstance.itemId, 1, 1, 0, null, null, null, result.removedInstance.level,
+    );
+    if (addResult.added !== 1) {
+      this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+      return false;
+    }
+    this.equipment.setSlot(equipmentSlot, result.newItem);
+    if (result.silverDelta) this.character = addSilver(this.character, result.silverDelta);
+    this.emit({ type: 'equipment-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: essenceDef.name + ' L' + current.level + ' removida.', level: 'info' });
+    return true;
+  }getEssenceBonusAtLevel(itemId: ItemId, level: number) {
+    const def = getEssenceByItemId(itemId as string);
+    if (!def) return null;
+    const cfg = ESSENCE_EVOLUTION[def.kind + '.t' + def.tier];
+    if (!cfg) return null;
+    return bonusAtLevel(def, cfg, level);
+  }
+
+  checkEssenceUpgrade(slotIndex: number) {
+    const slots = this.inventory.list();
+    const s = slots[slotIndex];
+    if (!s) return null;
+    const def = getEssenceByItemId(s.itemId as string);
+    if (!def) return null;
+    const cfg = ESSENCE_EVOLUTION[def.kind + '.t' + def.tier];
+    if (!cfg) return null;
+    const instance: EssenceInstance = { itemId: s.itemId, level: s.essenceLevel ?? 1 };
+    const counts = new Map<string, number>();
+    for (const st of slots) {
+      if (st) counts.set(st.itemId as string, (counts.get(st.itemId as string) ?? 0) + st.quantity);
+    }
+    return checkUpgrade(instance, cfg, this.character.silver, counts);
+  }
+
+  checkEssenceSacrifice(slotIndex: number) {
+    const slots = this.inventory.list();
+    const s = slots[slotIndex];
+    if (!s) return null;
+    const def = getEssenceByItemId(s.itemId as string);
+    if (!def) return null;
+    const cfg = ESSENCE_EVOLUTION[def.kind + '.t' + def.tier];
+    if (!cfg) return null;
+    const lvl = s.essenceLevel ?? 1;
+    const matching: EssenceInstance[] = [];
+    for (const st of slots) {
+      if (!st) continue;
+      if (st.itemId === s.itemId && (st.essenceLevel ?? 1) === lvl) {
+        for (let k = 0; k < st.quantity; k++) matching.push({ itemId: st.itemId, level: lvl });
+      }
+    }
+    return checkSacrifice(matching, cfg.maxLevel);
+  }
+
+  upgradeEssenceInInventory(slotIndex: number): boolean {
+    const slots = this.inventory.list();
+    const s = slots[slotIndex];
+    if (!s) return false;
+    const def = getEssenceByItemId(s.itemId as string);
+    if (!def) { this.emit({ type: 'notice', message: 'Item nao e uma essencia.', level: 'warn' }); return false; }
+    const cfg = ESSENCE_EVOLUTION[def.kind + '.t' + def.tier];
+    if (!cfg) return false;
+
+    const instance: EssenceInstance = { itemId: s.itemId, level: s.essenceLevel ?? 1 };
+    const counts = new Map<string, number>();
+    for (const st of slots) {
+      if (st) counts.set(st.itemId as string, (counts.get(st.itemId as string) ?? 0) + st.quantity);
+    }
+    const check = checkUpgrade(instance, cfg, this.character.silver, counts);
+    if (!check.ok || !check.cost) {
+      this.emit({ type: 'notice', message: this.describeUpgradeError(check.error), level: 'warn' });
+      return false;
+    }
+
+    this.character = addSilver(this.character, -check.cost.silver);
+    for (const m of check.cost.materials) {
+      const removed = this.inventory.remove(m.itemId, m.quantity);
+      if (removed.removed !== m.quantity) {
+        this.emit({ type: 'notice', message: 'Erro ao consumir materiais.', level: 'error' });
+        return false;
+      }
+    }
+    const newLevel = check.toLevel;
+    this.inventory.setAt(slotIndex, { ...s, essenceLevel: newLevel });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: def.name + ' melhorada para L' + newLevel + '.', level: 'info' });
+    return true;
+  }
+
+  sacrificeEssencesAt(slotIndex: number): boolean {
+    const slots = this.inventory.list();
+    const s = slots[slotIndex];
+    if (!s) return false;
+    const def = getEssenceByItemId(s.itemId as string);
+    if (!def) return false;
+    const cfg = ESSENCE_EVOLUTION[def.kind + '.t' + def.tier];
+    if (!cfg) return false;
+
+    const lvl = s.essenceLevel ?? 1;
+    const matchingIndices: number[] = [];
+    for (let i = 0; i < slots.length; i++) {
+      const st = slots[i];
+      if (!st) continue;
+      if (st.itemId === s.itemId && (st.essenceLevel ?? 1) === lvl) matchingIndices.push(i);
+      if (matchingIndices.length >= SACRIFICE_REQUIRED) break;
+    }
+    if (matchingIndices.length < SACRIFICE_REQUIRED) {
+      this.emit({ type: 'notice', message: 'Precisas de 3 essencias iguais do mesmo nivel.', level: 'warn' });
+      return false;
+    }
+
+    const matching: EssenceInstance[] = matchingIndices.map(() => ({ itemId: s.itemId, level: lvl }));
+    const check = checkSacrifice(matching, cfg.maxLevel);
+    if (!check.ok) {
+      this.emit({ type: 'notice', message: this.describeSacrificeError(check.error), level: 'warn' });
+      return false;
+    }
+    const cost = sacrificeCost(lvl);
+    if (this.character.silver < cost) {
+      this.emit({ type: 'notice', message: 'Prata insuficiente (' + cost + ').', level: 'warn' });
+      return false;
+    }
+
+    this.character = addSilver(this.character, -cost);
+    for (const idx of matchingIndices) this.inventory.setAt(idx, null);
+    const addResult = this.inventory.add(s.itemId, 1, 1, 0, null, null, null, check.resultLevel);
+    if (addResult.added !== 1) {
+      this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'error' });
+      return false;
+    }
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: '3x L' + lvl + ' -> 1x L' + check.resultLevel, level: 'info' });
+    return true;
+  }
+
+  private findInventorySlotMatching(itemId: ItemId, essenceLevel: number): number {
+    const slots = this.inventory.list();
+    for (let i = 0; i < slots.length; i++) {
+      const s = slots[i];
+      if (s && s.itemId === itemId && s.essenceLevel === essenceLevel) return i;
+    }
+    return -1;
+  }
+  private describeUpgradeError(err: string | null): string {
+    switch (err) {
+      case 'max-level': return 'Essencia no nivel maximo.';
+      case 'not-enough-silver': return 'Prata insuficiente.';
+      case 'not-enough-materials': return 'Faltam materiais.';
+      case 'no-config': return 'Configuracao em falta.';
+      default: return 'Upgrade invalido.';
+    }
+  }
+
+  private describeSacrificeError(err: string | null): string {
+    switch (err) {
+      case 'wrong-count': return 'Precisas de 3 essencias iguais.';
+      case 'mismatch-item': return 'As essencias tem de ser do mesmo tipo.';
+      case 'mismatch-level': return 'As essencias tem de ser do mesmo nivel.';
+      case 'max-level': return 'Nivel maximo atingido.';
+      default: return 'Sacrificio invalido.';
+    }
+  }
+  private describeEssenceError(err: string | null): string {
+    switch (err) {
+      case 'slot-occupied': return 'Slot de essencia ja ocupado.';
+      case 'slot-out-of-range': return 'Slot de essencia invalido.';
+      case 'incompatible-slot': return 'Essencia incompativel com este equipamento.';
+      case 'not-enough-silver': return 'Prata insuficiente.';
+      case 'stack-limit-reached': return 'Limite de stack atingido.';
+      case 'item-not-equippable': return 'Este item nao aceita essencias.';
+      case 'essence-not-equipped': return 'Sem essencia para remover.';
+      default: return 'Operacao invalida.';
+    }
+  }
+  /* ==================== Idle / Offline ==================== */
+
+  getIdleSetup(): IdleSetup | null { return this.idleSetup; }
+
+  setIdleSetup(setup: IdleSetup | null): void {
+    this.idleSetup = setup;
+    this.emit({ type: 'idle-changed' });
+  }
+
+  getLastIdleReport(): IdleReport | null { return this.lastIdleReport; }
+
+  clearLastIdleReport(): void {
+    this.lastIdleReport = null;
+    this.emit({ type: 'idle-changed' });
+  }
+
+  /**
+   * Simula o tempo decorrido entre `fromMs` e `toMs` usando o setup guardado.
+   * Chamado pelo main.ts ao carregar o save.
+   */
+  runIdleCatchup(fromMs: number, toMs: number): IdleReport | null {
+    const setup = this.idleSetup;
+    if (!setup) return null;
+    const rawElapsed = toMs - fromMs;
+    if (rawElapsed <= 0) return null;
+    const cappedMs = Math.min(rawElapsed, MAX_OFFLINE_MS);
+    const wasCapped = rawElapsed > cappedMs;
+    const seed = deriveSeed(Math.floor(fromMs / 1000), this.character.level);
+    const rng = new SeededRng(seed);
+
+    let report: IdleReport;
+    if (setup.activity.kind === 'combat') {
+      report = this.runIdleCombat(setup, fromMs, toMs, cappedMs, wasCapped, rng);
+    } else if (setup.activity.kind === 'gathering') {
+      report = this.runIdleGathering(setup, fromMs, toMs, cappedMs, wasCapped, rng);
+    } else {
+      report = this.runIdleProduction(setup, fromMs, toMs, cappedMs, wasCapped, rng);
+    }
+
+    this.lastIdleReport = report;
+    this.emit({ type: 'idle-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    return report;
+  }
+
+  private runIdleCombat(setup: IdleSetup, fromMs: number, toMs: number, cappedMs: number, wasCapped: boolean, rng: SeededRng): IdleReport {
+    const cfg = setup.activity;
+    if (cfg.kind !== 'combat') throw new Error('config nao e combate');
+    const zone = this.registry.getZone(cfg.zoneId);
+    if (!zone) {
+      return emptyReport(fromMs, toMs, cappedMs, wasCapped, cfg, 'stopped-dead', 'Zona inexistente.');
+    }
+    const player = this.getDerivedStats();
+    const monsters: CombatIdleMonster[] = [];
+    for (const mid of zone.monsters) {
+      const m = this.registry.getMonster(mid);
+      if (!m) continue;
+      const dmgPerHit = computeDamage({ attack: player.attack, multiplier: 1, defense: m.defense, critChance: player.criticalChance, rng: () => 0.5 }).damage;
+      const hitsToKill = Math.max(1, Math.ceil(m.maxHp / dmgPerHit));
+      const killTimeMs = hitsToKill * PLAYER_ATTACK_INTERVAL_MS;
+      const monsterHits = Math.max(1, Math.ceil(killTimeMs / m.attackIntervalMs));
+      const monsterDmg = computeDamage({ attack: m.attack, multiplier: 1, defense: player.defense, critChance: 0, rng: () => 0.5 }).damage;
+      const hpLossPerKill = monsterHits * monsterDmg;
+      monsters.push({
+        monsterId: m.id as string,
+        weight: 1,
+        killTimeMs,
+        hpLossPerKill,
+        expReward: m.expReward,
+        silverReward: m.silverReward,
+        loot: m.loot.map((l) => ({ itemId: l.itemId as string, chance: l.chance, min: l.minQuantity, max: l.maxQuantity })),
+      });
+    }
+
+    // Contar pocoes HP no inventario
+    let hpItems = 0;
+    let hpItemId: ItemId | null = null;
+    let healAmount = 0;
+    for (const stack of this.inventory.list()) {
+      if (!stack) continue;
+      const def = this.registry.getItem(stack.itemId);
+      if (!def) continue;
+      if (def.appliesBuffId === null) continue;
+      const buff = this.registry.getBuff(def.appliesBuffId);
+      if (buff && buff.kind === 'hp-regen') {
+        hpItems += stack.quantity;
+        hpItemId = stack.itemId;
+        healAmount = Math.max(healAmount, buff.magnitude * (buff.durationMs / 1000));
+      }
+    }
+
+    const outcome = simulateCombat({
+      monsters,
+      playerMaxHp: player.maxHp,
+      playerHpAtStart: this.character.hp,
+      hpRecoveryPerKill: 5,
+      maxHpItems: hpItems,
+      hpItemHealAmount: healAmount,
+      hpItemThreshold: setup.autoHpThreshold,
+    }, cappedMs, rng);
+
+    // Aplicar resultados
+    const xpPrev = this.character.level;
+    this.character = applyExperience(this.character, outcome.xpGained).state;
+    this.character = addSilver(this.character, outcome.silverGained);
+    if (this.character.level > xpPrev) {
+      const d = this.getDerivedStats();
+      this.character = { ...this.character, hp: d.maxHp, resource: d.maxResource };
+    }
+    for (const entry of outcome.loot) {
+      const itemId = asItemId(entry.itemId);
+      const def = this.registry.getItem(itemId);
+      if (!def) continue;
+      this.inventory.add(itemId, entry.quantity, def.maxStack, 0);
+    }
+    if (outcome.hpItemsUsed > 0 && hpItemId) {
+      this.inventory.remove(hpItemId, outcome.hpItemsUsed);
+    }
+    this.ledger.record('combat', outcome.silverGained, outcome.loot.map((l) => ({ itemId: asItemId(l.itemId), delta: l.quantity })), 'Idle combat: ' + outcome.kills + ' kills', toMs);
+
+    const stoppedMsg = outcome.stoppedReason === 'dead' ? 'Foste derrotado.'
+      : outcome.stoppedReason === 'no-hp-item' ? 'Pocoes esgotadas.'
+      : wasCapped ? 'Tempo limitado ao maximo offline (8h).'
+      : 'Concluido.';
+
+    return {
+      startedAt: fromMs, endedAt: toMs, simulatedMs: cappedMs, cappedMs, wasCapped,
+      config: cfg, outcome: outcome.stoppedReason === 'dead' ? 'stopped-dead'
+        : outcome.stoppedReason === 'no-hp-item' ? 'stopped-no-hp-item'
+        : 'completed',
+      xpGained: outcome.xpGained, silverGained: outcome.silverGained,
+      loot: outcome.loot, kills: outcome.kills, actions: 0, batches: 0,
+      consumablesUsed: outcome.hpItemsUsed, notes: stoppedMsg,
+    };
+  }
+
+  private runIdleGathering(setup: IdleSetup, fromMs: number, toMs: number, cappedMs: number, wasCapped: boolean, rng: SeededRng): IdleReport {
+    const cfg = setup.activity;
+    if (cfg.kind !== 'gathering') throw new Error('config nao e gathering');
+    const node = this.registry.getNode(cfg.nodeId);
+    if (!node) return emptyReport(fromMs, toMs, cappedMs, wasCapped, cfg, 'stopped-no-tool', 'No inexistente.');
+
+    const check = this.canGatherAt(cfg.nodeId);
+    if (!check.ok) return emptyReport(fromMs, toMs, cappedMs, wasCapped, cfg, 'stopped-no-tool', check.reason ?? 'Sem ferramenta.');
+
+    const profState = this.getProfessionState(node.professionId);
+    const speedBonus = this.buffModifier('gather-speed');
+    const adjustedBase = Math.max(200, node.baseTimeMs * (1 - speedBonus));
+    const cycleMs = effectiveActionTimeMs(adjustedBase, profState.mastery, check.tool);
+
+    const outcome = simulateGathering({
+      cycleMs,
+      expPerCycle: node.baseExp,
+      loot: node.loot.map((l) => ({ itemId: l.itemId as string, chance: l.chance, min: l.minQuantity, max: l.maxQuantity })),
+      toolDurability: check.tool?.durability ?? 0,
+      durabilityPerCycle: check.tool ? 1 : 0,
+      inventoryFreeSlots: this.inventory.capacity - this.inventory.usedSlots(),
+    }, cappedMs, rng);
+
+    for (const entry of outcome.loot) {
+      const itemId = asItemId(entry.itemId);
+      const def = this.registry.getItem(itemId);
+      if (!def) continue;
+      this.inventory.add(itemId, entry.quantity, def.maxStack, 0);
+    }
+    // Gastar durabilidade
+    if (outcome.durabilitySpent > 0 && check.tool) {
+      const current = this.equipment.get('tool');
+      if (current && current.durability !== null) {
+        this.equipment.setSlot('tool', { ...current, durability: Math.max(0, current.durability - outcome.durabilitySpent) });
+      }
+    }
+    const prof = this.registry.getProfession(node.professionId);
+    if (prof) {
+      const lr = addProfessionExperience(profState, outcome.xpGained, prof.maxLevel, prof.masteryPerLevel);
+      this.professionStates.set(node.professionId, lr.state);
+    }
+    this.ledger.record('profession', 0, outcome.loot.map((l) => ({ itemId: asItemId(l.itemId), delta: l.quantity })), 'Idle gathering: ' + outcome.actions + ' acoes', toMs);
+
+    const stoppedMsg = outcome.stoppedReason === 'tool-broken' ? 'Ferramenta quebrou.'
+      : outcome.stoppedReason === 'inventory-full' ? 'Inventario cheio.'
+      : wasCapped ? 'Tempo limitado ao maximo offline (8h).'
+      : 'Concluido.';
+
+    return {
+      startedAt: fromMs, endedAt: toMs, simulatedMs: cappedMs, cappedMs, wasCapped,
+      config: cfg, outcome: outcome.stoppedReason === 'tool-broken' ? 'stopped-tool-broken'
+        : outcome.stoppedReason === 'inventory-full' ? 'stopped-inventory-full'
+        : 'completed',
+      xpGained: outcome.xpGained, silverGained: 0,
+      loot: outcome.loot, kills: 0, actions: outcome.actions, batches: 0,
+      consumablesUsed: 0, notes: stoppedMsg,
+    };
+  }
+
+  private runIdleProduction(setup: IdleSetup, fromMs: number, toMs: number, cappedMs: number, wasCapped: boolean, rng: SeededRng): IdleReport {
+    const cfg = setup.activity;
+    if (cfg.kind !== 'production') throw new Error('config nao e production');
+    const recipe = this.registry.getRecipe(cfg.recipeId);
+    if (!recipe) return emptyReport(fromMs, toMs, cappedMs, wasCapped, cfg, 'stopped-no-materials', 'Receita inexistente.');
+
+    const profState = this.getProfessionState(recipe.professionId);
+    if (profState.level < recipe.requiredLevel) {
+      return emptyReport(fromMs, toMs, cappedMs, wasCapped, cfg, 'stopped-no-materials', 'Nivel insuficiente.');
+    }
+    const speedBonus = this.buffModifier('craft-speed');
+    const cycleMs = Math.max(200, Math.floor(recipe.baseTimeMs * (1 - Math.min(0.4, profState.mastery * 0.001)) * (1 - speedBonus)));
+
+    // Inventario como mapa itemId->quantidade
+    const inventoryMap = new Map<string, number>();
+    for (const stack of this.inventory.list()) {
+      if (!stack) continue;
+      inventoryMap.set(stack.itemId as string, (inventoryMap.get(stack.itemId as string) ?? 0) + stack.quantity);
+    }
+
+    const outcome = simulateProduction({
+      cycleMs,
+      batchesPerCycle: cfg.batchesPerCycle,
+      expPerCycle: recipe.baseExp,
+      inputsPerCycle: recipe.inputs.map((i) => ({ itemId: i.itemId as string, quantity: i.quantity })),
+      outputsPerCycle: recipe.outputs.map((o) => ({ itemId: o.itemId as string, quantity: o.quantity, chance: o.chance })),
+      inventory: inventoryMap,
+    }, cappedMs, rng);
+
+    // Consumir inputs
+    for (const c of outcome.consumed) {
+      const itemId = asItemId(c.itemId);
+      this.inventory.remove(itemId, c.quantity);
+    }
+    // Adicionar outputs
+    for (const p of outcome.produced) {
+      const itemId = asItemId(p.itemId);
+      const def = this.registry.getItem(itemId);
+      if (!def) continue;
+      this.inventory.add(itemId, p.quantity, def.maxStack, 0);
+    }
+    const prof = this.registry.getProfession(recipe.professionId);
+    if (prof) {
+      const lr = addProfessionExperience(profState, outcome.xpGained, prof.maxLevel, prof.masteryPerLevel);
+      this.professionStates.set(recipe.professionId, lr.state);
+    }
+    // Custo de prata
+    const silverCost = recipe.silverCost * outcome.batches;
+    if (silverCost > 0 && this.character.silver >= silverCost) {
+      this.character = addSilver(this.character, -silverCost);
+    }
+    this.ledger.record('crafting', -silverCost, outcome.produced.map((p) => ({ itemId: asItemId(p.itemId), delta: p.quantity })), 'Idle crafting: ' + outcome.cycles + ' ciclos', toMs);
+
+    const stoppedMsg = outcome.stoppedReason === 'no-materials' ? 'Faltaram materiais.'
+      : wasCapped ? 'Tempo limitado ao maximo offline (8h).'
+      : 'Concluido.';
+
+    return {
+      startedAt: fromMs, endedAt: toMs, simulatedMs: cappedMs, cappedMs, wasCapped,
+      config: cfg, outcome: outcome.stoppedReason === 'no-materials' ? 'stopped-no-materials' : 'completed',
+      xpGained: outcome.xpGained, silverGained: -silverCost,
+      loot: outcome.produced, kills: 0, actions: 0, batches: outcome.batches,
+      consumablesUsed: 0, notes: stoppedMsg,
+    };
+  }
+  /* ==================== Mundo / Zonas ==================== */
+
+  getZoneAccess(zoneId: ZoneId): ZoneAccessInfo | null {
+    const zone = this.registry.getZone(zoneId);
+    if (!zone) return null;
+    return evaluateZoneAccess(zone, this.character.level, this.getCompletedQuestIds());
+  }
+
+  getAllZoneAccess(): ReadonlyMap<ZoneId, ZoneAccessInfo> {
+    return zoneAccessMap(
+      Array.from(this.registry.zones.values()),
+      this.character.level,
+      this.getCompletedQuestIds(),
+    );
+  }
+
+  getZoneTree(): readonly ZoneTreeNode[] {
+    return buildZoneTree(Array.from(this.registry.zones.values()));
+  }
+
+  private getCompletedQuestIds(): ReadonlySet<string> {
+    const set = new Set<string>();
+    for (const q of this.questStates) {
+      if (q.status === 'completed') set.add(q.questId as string);
+    }
+    return set;
+  }
+
+  /** Pode o jogador entrar nesta zona? */
+  canEnterZone(zoneId: ZoneId): { ok: boolean; reason: string | null } {
+    const zone = this.registry.getZone(zoneId);
+    if (!zone) return { ok: false, reason: 'Zona inexistente.' };
+    const access = this.getZoneAccess(zoneId);
+    if (!access || access.access !== 'unlocked') {
+      return { ok: false, reason: access?.reason ?? 'Zona bloqueada.' };
+    }
+    if (zone.minLevel > this.character.level) {
+      return { ok: false, reason: 'Requer nivel ' + zone.minLevel + '.' };
+    }
+    return { ok: true, reason: null };
+  }
+
+  /* ==================== NPC Services ==================== */
+
+  getServicesInZone(zoneId: ZoneId): readonly NpcServiceDefinition[] {
+    return findServicesInZone(zoneId);
+  }
+
+  /** Calcula o custo de um servico para o estado atual. */
+  getServiceCost(serviceId: string): number | null {
+    const svc = this.findServiceById(serviceId);
+    if (!svc) return null;
+    if (svc.kind === 'heal-hp') {
+      const derived = this.getDerivedStats();
+      const missing = Math.max(0, derived.maxHp - this.character.hp);
+      return missing * svc.costPerUnit;
+    }
+    if (svc.kind === 'heal-resource') {
+      const derived = this.getDerivedStats();
+      const missing = Math.max(0, derived.maxResource - this.character.resource);
+      return missing * svc.costPerUnit;
+    }
+    if (svc.kind === 'repair-tool') {
+      const tool = this.equipment.get('tool');
+      if (!tool || tool.durability === null) return null;
+      const def = this.registry.getItem(tool.itemId);
+      if (!def) return null;
+      const missing = Math.max(0, def.maxDurability - tool.durability);
+      return missing * svc.costPerUnit;
+    }
+    if (svc.kind === 'buy-item') return svc.costPerUnit;
+    return null;
+  }
+
+  useService(serviceId: string): boolean {
+    const svc = this.findServiceById(serviceId);
+    if (!svc) { this.emit({ type: 'notice', message: 'Servico desconhecido.', level: 'warn' }); return false; }
+
+    const cost = this.getServiceCost(serviceId);
+    if (cost === null) { this.emit({ type: 'notice', message: 'Servico indisponivel.', level: 'warn' }); return false; }
+    if (cost === 0) { this.emit({ type: 'notice', message: 'Nao precisas deste servico agora.', level: 'info' }); return false; }
+    if (this.character.silver < cost) {
+      this.emit({ type: 'notice', message: 'Prata insuficiente (' + cost + ').', level: 'warn' });
+      return false;
+    }
+
+    // Aplicar efeito
+    if (svc.kind === 'heal-hp') {
+      const derived = this.getDerivedStats();
+      this.character = { ...this.character, hp: derived.maxHp };
+      this.ledger.record('buy', -cost, [], 'Servico: ' + svc.name, Date.now());
+    } else if (svc.kind === 'heal-resource') {
+      const derived = this.getDerivedStats();
+      this.character = { ...this.character, resource: derived.maxResource };
+      this.ledger.record('buy', -cost, [], 'Servico: ' + svc.name, Date.now());
+    } else if (svc.kind === 'repair-tool') {
+      const tool = this.equipment.get('tool');
+      if (!tool) { this.emit({ type: 'notice', message: 'Sem ferramenta equipada.', level: 'warn' }); return false; }
+      const def = this.registry.getItem(tool.itemId);
+      if (!def) return false;
+      this.equipment.setSlot('tool', { ...tool, durability: def.maxDurability });
+      this.ledger.record('buy', -cost, [], 'Servico: ' + svc.name, Date.now());
+    } else if (svc.kind === 'buy-item') {
+      if (!svc.itemId) return false;
+      const itemDef = this.registry.getItem(svc.itemId);
+      if (!itemDef) return false;
+      const dur = isTool(itemDef) ? itemDef.maxDurability : null;
+      const res = this.inventory.add(svc.itemId, 1, itemDef.maxStack, 0, dur);
+      if (res.added !== 1) {
+        this.emit({ type: 'notice', message: 'Inventario cheio.', level: 'warn' });
+        return false;
+      }
+      this.ledger.record('buy', -cost, [{ itemId: svc.itemId, delta: 1 }], 'Servico: ' + svc.name, Date.now());
+    }
+
+    this.character = addSilver(this.character, -cost);
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'equipment-changed' });
+    this.emit({ type: 'notice', message: svc.name + ' (' + cost + ' prata)', level: 'info' });
+    return true;
+  }
+
+  private findServiceById(serviceId: string): NpcServiceDefinition | null {
+    for (const zone of this.registry.zones.values()) {
+      const svcs = findServicesInZone(zone.id);
+      for (const s of svcs) if (s.id === serviceId) return s;
+    }
+    return null;
+  }
+  /* ==================== Atributos ==================== */
+
+  getBaseAttributes(): Attributes {
+    const cls = this.registry.getClass(this.character.classId);
+    return cls?.attributes ?? ZERO_ATTRIBUTES;
+  }
+
+  getEquipmentBonuses(): Attributes {
+    let total = ZERO_ATTRIBUTES;
+    for (const stack of this.equipment.list().values()) {
+      const def = this.registry.getItem(stack.itemId);
+      if (!def) continue;
+      total = addAttributes(total, enhancedAttributes(def, stack.enhancementLevel));
+    }
+    return total;
+  }
+
+  getEquipmentPower(): PowerStats {
+    let total = ZERO_POWER;
+    for (const stack of this.equipment.list().values()) {
+      const def = this.registry.getItem(stack.itemId);
+      if (!def) continue;
+      total = addPower(total, enhancedPower(def, stack.enhancementLevel));
+    }
+    return total;
+  }
+
+  /** Agrega bonus de melhoramento de todo o equipamento equipado. */
+  getEquipmentEnhancementBonuses() {
+    const entries: { item: import('../domain/content').ItemDefinition; level: number }[] = [];
+    for (const stack of this.equipment.list().values()) {
+      const def = this.registry.getItem(stack.itemId);
+      if (!def) continue;
+      entries.push({ item: def, level: stack.enhancementLevel });
+    }
+    return sumEnhancementBonuses(entries);
+  }
+  getTotalAttributes(): Attributes { return addAttributes(this.getBaseAttributes(), this.getEquipmentBonuses()); }
+  getTotalPower(): PowerStats { return this.getEquipmentPower(); }
+  getEquipmentRandomBonuses(): RandomBonusBundle {
+    const rolls: (readonly RandomAttributeRoll[] | null)[] = [];
+    for (const stack of this.equipment.list().values()) {
+      rolls.push(stack.randomAttributes);
+    }
+    return sumRolls(rolls);
+  }
+
+  /**
+   * FONTE UNICA de atributos derivados (AP, DP, attack, defense, HP, critico).
+   * Ordem aplicada (Fase 16): base -> equip -> rolls -> buffs -> scaling -> floor.
+   * Nao duplicar este calculo em nenhum outro modulo.
+   */
+  getDerivedStats() {
+    const cls = this.registry.getClass(this.character.classId);
+    const baseAttrs = this.getTotalAttributes();
+    const basePower = this.getEquipmentPower();
+    const rand = this.getEquipmentRandomBonuses();
+
+    // Rolls de attack/defense entram via power (fonte unica de AP/DP bruto)
+    const totalPower = {
+      attackPower: basePower.attackPower + rand.attack,
+      defensePower: basePower.defensePower + rand.defense,
+    };
+
+    const essBonus = this.getEssenceBonuses();
+    return deriveStats(baseAttrs, totalPower, {
+      apScaling: cls?.apScaling ?? 1,
+      dpScaling: cls?.dpScaling ?? 1,
+      buffAp: this.buffModifier('ap-bonus'),
+      buffDp: this.buffModifier('dp-bonus'),
+      buffAttack: this.buffModifier('attack-power'),
+      buffCritChance: this.buffModifier('crit-chance'),
+      extraMaxHp: rand.maxHp,
+      extraCritChance: rand.critChance,
+      essenceAp: essBonus.ap,
+      essenceDp: essBonus.dp,
+      essenceMaxHp: essBonus.maxHp,
+      essenceCritChance: essBonus.critChance,
+      essenceLifesteal: essBonus.lifesteal,
+    });
+  }
+
+  /** Breakdown de AP/DP para a UI. Cada componente aparece uma unica vez. */
+  getPowerBreakdown(): {
+    ap: { base: number; equipment: number; rolls: number; buffs: number; scaling: number; total: number };
+    dp: { base: number; equipment: number; rolls: number; buffs: number; scaling: number; total: number };
+  } {
+    const cls = this.registry.getClass(this.character.classId);
+    const baseAttrs = this.getTotalAttributes();
+    const basePower = this.getEquipmentPower();
+    const rand = this.getEquipmentRandomBonuses();
+    const C = BALANCE.character;
+
+    const baseAp = Math.floor(baseAttrs.strength * C.apFromStrength);
+    const baseDp = Math.floor(baseAttrs.vitality * C.dpFromVitality);
+
+    const equipAp = basePower.attackPower;
+    const equipDp = basePower.defensePower;
+
+    const rollsAp = rand.attack;
+    const rollsDp = rand.defense;
+
+    const buffsAp = this.buffModifier('ap-bonus');
+    const buffsDp = this.buffModifier('dp-bonus');
+
+    const apScaling = cls?.apScaling ?? 1;
+    const dpScaling = cls?.dpScaling ?? 1;
+
+    const rawAp = baseAp + equipAp + rollsAp + buffsAp;
+    const rawDp = baseDp + equipDp + rollsDp + buffsDp;
+
+    const totalAp = Math.max(0, Math.floor(rawAp * apScaling));
+    const totalDp = Math.max(0, Math.floor(rawDp * dpScaling));
+
+    return {
+      ap: { base: baseAp, equipment: equipAp, rolls: rollsAp, buffs: buffsAp, scaling: apScaling, total: totalAp },
+      dp: { base: baseDp, equipment: equipDp, rolls: rollsDp, buffs: buffsDp, scaling: dpScaling, total: totalDp },
+    };
+  }
+
+  getCritDamageMultiplier(): number {
+    return 1.5 + this.getEquipmentRandomBonuses().critDamage;
+  }
+
+  getExperienceBonus(): number {
+    return this.getEquipmentRandomBonuses().bonusXp;
+  }
+
+  getSilverBonus(): number {
+    const rand = this.getEquipmentRandomBonuses();
+    const ess = this.getEssenceBonuses();
+    return rand.bonusSilver + ess.bonusSilver;
+  }
+
+  getGatherYieldBonus(): number {
+    return this.getEquipmentRandomBonuses().gatherYield;
+  }
+
+  getPlayerSkills(): readonly SkillDefinition[] {
+    const cls = this.registry.getClass(this.character.classId);
+    if (!cls) return [];
+    return cls.skillIds.map((id) => this.registry.getSkill(id))
+      .filter((s): s is SkillDefinition => s !== undefined && s.requiredLevel <= this.character.level);
+  }
+
+  /* ==================== Melhoramentos ==================== */
+
+  previewEnhancement(slotIndex: number, useProtection: boolean): EnhancementPreview | null {
+    const slot = this.inventory.list()[slotIndex];
+    if (!slot) return null;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def || !def.enhanceable) return null;
+    const category = this.inferCategory(def);
+    const rule = this.registry.getEnhancementRule(category);
+    if (!rule) return null;
+    const currentLevel = slot.enhancementLevel;
+    const targetLevel = currentLevel + 1;
+    const alreadyMax = targetLevel > rule.maxLevel;
+    if (alreadyMax) {
+      return {
+        itemId: slot.itemId, currentLevel, targetLevel: currentLevel,
+        maxLevel: rule.maxLevel, successChance: 0,
+        cost: { silver: 0, materials: [] }, failureOutcome: { kind: 'nothing' },
+        canAfford: false, missingSilver: 0, missingMaterials: [], alreadyMax: true,
+      };
+    }
+    const config = rule.levels.find((l) => l.targetLevel === targetLevel);
+    if (!config) return null;
+    const missingSilver = Math.max(0, config.cost.silver - this.character.silver);
+    const missingMaterials = config.cost.materials
+      .filter((m) => this.inventory.count(m.itemId) < m.quantity)
+      .map((m) => ({ itemId: m.itemId, quantity: m.quantity - this.inventory.count(m.itemId) }));
+    const canAfford = missingSilver === 0 && missingMaterials.length === 0;
+    let failureOutcome = config.failureOutcome;
+    if (useProtection && def.protectionItemId && this.inventory.count(def.protectionItemId) > 0 && config.failureOutcome.kind === 'destroy') {
+      failureOutcome = { kind: 'nothing' };
+    }
+    return {
+      itemId: slot.itemId, currentLevel, targetLevel, maxLevel: rule.maxLevel,
+      successChance: config.successChance, cost: config.cost,
+      failureOutcome, canAfford, missingSilver, missingMaterials, alreadyMax: false,
+    };
+  }
+
+  enhanceFromInventorySlot(slotIndex: number, useProtection: boolean): EnhancementResult | null {
+    const slot = this.inventory.list()[slotIndex];
+    if (!slot) return null;
+    const def = this.registry.getItem(slot.itemId);
+    if (!def || !def.enhanceable) { this.emit({ type: 'notice', message: 'Item nao melhoravel.', level: 'warn' }); return null; }
+    const category = this.inferCategory(def);
+    const rule = this.registry.getEnhancementRule(category);
+    if (!rule) return null;
+    const wallet = {
+      silver: () => this.character.silver,
+      spendSilver: (amount: number): boolean => {
+        if (this.character.silver < amount) return false;
+        this.character = { ...this.character, silver: this.character.silver - amount };
+        return true;
+      },
+    };
+    const bag = {
+      count: (itemId: ItemId) => this.inventory.count(itemId),
+      consume: (itemId: ItemId, qty: number): boolean => this.inventory.remove(itemId, qty).removed === qty,
+    };
+    const protection = def.protectionItemId
+      ? { has: (id: ItemId) => this.inventory.count(id) > 0, consume: (id: ItemId) => this.inventory.remove(id, 1).removed === 1 }
+      : null;
+    const result = attemptEnhancement({
+      itemId: slot.itemId, currentLevel: slot.enhancementLevel, rule, wallet, bag,
+      protectionItemId: useProtection ? def.protectionItemId : null,
+      protection: useProtection ? protection : null,
+      rng: this.rng, nowMs: Date.now(),
+    });
+    if (!result) { this.emit({ type: 'notice', message: 'Nao e possivel melhorar.', level: 'warn' }); return null; }
+    if (result.destroyed) this.inventory.setAt(slotIndex, null);
+    else if (result.newLevel !== slot.enhancementLevel) this.inventory.setAt(slotIndex, makeStack(slot.itemId, 1, result.newLevel, slot.durability, slot.randomAttributes, slot.essences));
+    const hist: EnhancementHistoryEntry = {
+      itemId: slot.itemId, previousLevel: result.previousLevel, attemptedLevel: result.previousLevel + 1,
+      success: result.success, destroyed: result.destroyed, usedProtection: result.usedProtection, timestamp: result.timestamp,
+    };
+    this.enhancementHistory = pushHistory(this.enhancementHistory, hist, HISTORY_CAPACITY);
+    if (result.success) this.triggerTutorial({ kind: 'enhance-level', targetId: null, amount: 1 });
+    if (result.success) this.triggerQuest({ kind: 'enhance-level', targetId: null, amount: 1 });
+    if (result.success) this.emit({ type: 'notice', message: 'Sucesso! +' + result.newLevel, level: 'info' });
+    else if (result.destroyed) this.emit({ type: 'notice', message: 'Item destruido!', level: 'error' });
+    else if (result.newLevel < result.previousLevel) this.emit({ type: 'notice', message: 'Falhou. Desceu para +' + result.newLevel + '.', level: 'warn' });
+    else this.emit({ type: 'notice', message: 'Falhou.', level: 'warn' });
+    this.emit({ type: 'enhancement-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    return result;
+  }
+
+  private inferCategory(def: ItemDefinition): EnhancementCategory {
+    if (def.category === 'weapon') return 'weapon';
+    if (def.category === 'armor') return 'armor';
+    if (def.category === 'accessory') return 'accessory';
+    return 'tool';
+  }
+
+  grantSilverDebug(amount: number): void {
+    this.character = addSilver(this.character, amount);
+    this.emit({ type: 'character-changed' });
+  }
+
+  private ensureAllProfessions(): void {
+    for (const p of this.registry.professions.values()) {
+      if (!this.professionStates.has(p.id)) this.professionStates.set(p.id, newProfessionState());
+    }
+  }
+
+  /* ==================== Persistencia ==================== */
+
+  toSnapshot(now: number): SaveLatest {
+    return {
+      schemaVersion: 12,
+      savedAt: now,
+      character: characterToSnapshot(this.character),
+      inventory: inventoryToSnapshot(this.inventory),
+      warehouse: inventoryToSnapshot(this.warehouse),
+      equipment: equipmentToSnapshot(this.equipment.list()),
+      combat: this.combatState && this.currentZoneId && this.currentMonsterId
+        ? combatStateToSnapshot(this.combatState, this.currentZoneId, this.currentMonsterId) : null,
+      combatConfig: configToSnapshot(this.combatConfig),
+      enhancementHistory: historyToSnapshot(this.enhancementHistory),
+      professionStates: professionsToSnapshot(this.professionStates),
+      activity: this.activity ? activityToSnapshot(this.activity) : null,
+      buffs: this.buffs.toSnapshot().map((b) => ({ buffId: b.buffId as string, kind: b.kind, magnitude: b.magnitude, appliedAt: b.appliedAt, expiresAt: b.expiresAt })),
+      farm: farmToSnapshot(this.farm),
+      transactions: this.ledger.list().map((t) => ({
+        id: t.id, category: t.category, silverDelta: t.silverDelta,
+        itemDeltas: t.itemDeltas.map((d) => ({ itemId: d.itemId as string, delta: d.delta })),
+        label: t.label, timestamp: t.timestamp,
+      })),
+      idleSetup: this.idleSetup ? idleSetupToSnapshot(this.idleSetup) : null,
+      lastIdleReport: this.lastIdleReport ? idleReportToSnapshot(this.lastIdleReport) : null,
+      tutorial: {
+        entries: this.tutorial.entries.map((e) => ({ stepId: e.stepId, completed: e.completed, currentCount: e.currentCount, completedAt: e.completedAt })),
+        rewardClaimed: Array.from(this.tutorial.rewardClaimed),
+      },
+      quests: this.questStates.map((q) => ({
+        questId: q.questId as string,
+        status: q.status,
+        progress: q.progress.map((p) => ({ objectiveId: p.objectiveId, currentCount: p.currentCount })),
+        startedAt: q.startedAt,
+        completedAt: q.completedAt,
+        rewardClaimed: q.rewardClaimed,
+      })),
+    };
+  }
+}
+
+/* ==================== Serializacao ==================== */
+
+function characterToSnapshot(s: CharacterState): CharacterSnapshotV1 {
+  return {
+    id: s.id, name: s.name, classId: s.classId, createdAt: s.createdAt,
+    level: s.level, experience: s.experience, silver: s.silver,
+    progressionPoints: s.progressionPoints, hp: s.hp, resource: s.resource,
+    unlocks: Array.from(s.unlocks),
+  };
+}
+
+function characterFromSnapshot(s: CharacterSnapshotV1): CharacterState {
+  return {
+    id: s.id, name: s.name, classId: asClassId(s.classId), createdAt: s.createdAt,
+    level: s.level, experience: s.experience, silver: s.silver,
+    progressionPoints: s.progressionPoints, hp: s.hp, resource: s.resource,
+    unlocks: new Set(s.unlocks),
+  };
+}
+
+function inventoryToSnapshot(inv: Inventory): InventorySnapshot {
+  return {
+    capacity: inv.capacity,
+    slots: inv.list().map((s) => s ? { itemId: s.itemId as string, quantity: s.quantity, enhancementLevel: s.enhancementLevel, durability: s.durability, randomAttributes: s.randomAttributes ? s.randomAttributes.map((r) => ({ kind: r.kind, value: r.value })) : null, essences: s.essences ? s.essences.map((e) => e ? { itemId: e.itemId as string, level: e.level } : null) : null, essenceLevel: s.essenceLevel } : null),
+  };
+}
+
+function inventoryFromSnapshot(snap: InventorySnapshot): Inventory {
+  const initial = snap.slots.map((s) => s ? makeStack(asItemId(s.itemId), s.quantity, s.enhancementLevel, s.durability, s.randomAttributes ? s.randomAttributes.map((r) => ({ kind: r.kind as import('../domain/random-attributes/types').RandomAttributeKind, value: r.value })) : null, s.essences ? s.essences.map((e) => e ? { itemId: asItemId(e.itemId), level: e.level } : null) : null, s.essenceLevel) : null);
+  return new Inventory(snap.capacity, initial);
+}
+
+function equipmentToSnapshot(state: ReadonlyMap<string, ItemStack>): EquipmentSnapshot {
+  const obj: Record<string, ItemStackSnapshot> = {};
+  for (const [k, v] of state) obj[k] = { itemId: v.itemId as string, quantity: v.quantity, enhancementLevel: v.enhancementLevel, durability: v.durability, randomAttributes: v.randomAttributes ? v.randomAttributes.map((r) => ({ kind: r.kind, value: r.value })) : null, essences: v.essences ? v.essences.map((e) => e ? { itemId: e.itemId as string, level: e.level } : null) : null, essenceLevel: v.essenceLevel };
+  return { slots: obj };
+}
+
+function equipmentFromSnapshot(snap: EquipmentSnapshot): Equipment {
+  const map = new Map<EquipmentSlotId, ItemStack>();
+  for (const [k, v] of Object.entries(snap.slots)) map.set(k as EquipmentSlotId, makeStack(asItemId(v.itemId), v.quantity, v.enhancementLevel, v.durability, v.randomAttributes ? v.randomAttributes.map((r) => ({ kind: r.kind as import('../domain/random-attributes/types').RandomAttributeKind, value: r.value })) : null, v.essences ? v.essences.map((e) => e ? { itemId: asItemId(e.itemId), level: e.level } : null) : null, v.essenceLevel));
+  return new Equipment(map);
+}
+
+function configToSnapshot(c: CombatConfig): CombatConfigSnapshot {
+  return { autoMode: c.autoMode, useSkills: c.useSkills, strategy: c.strategy, skillPriority: c.skillPriority.map((s) => s as string) };
+}
+
+function configFromSnapshot(s: CombatConfigSnapshot): CombatConfig {
+  return {
+    autoMode: s.autoMode, useSkills: s.useSkills,
+    strategy: (s.strategy as CombatConfig['strategy']) ?? 'aggressive',
+    skillPriority: s.skillPriority.map((x) => asSkillId(x)),
+  };
+}
+
+function combatStateToSnapshot(state: CombatState, zoneId: ZoneId, monsterId: MonsterId): CombatSnapshot {
+  const ready: Record<string, number> = {};
+  for (const [k, v] of state.playerSkillReadyAt) ready[k as string] = v;
+  return {
+    zoneId: zoneId as string, monsterId: monsterId as string,
+    timeMs: state.timeMs, playerHp: state.playerHp, playerResource: state.playerResource,
+    playerNextAttackAt: state.playerNextAttackAt, playerSkillReadyAt: ready,
+    monsterHp: state.monsterHp, monsterNextAttackAt: state.monsterNextAttackAt,
+  };
+}
+
+function historyToSnapshot(h: readonly EnhancementHistoryEntry[]): readonly EnhancementHistorySnapshot[] {
+  return h.map((e) => ({
+    itemId: e.itemId as string, previousLevel: e.previousLevel, attemptedLevel: e.attemptedLevel,
+    success: e.success, destroyed: e.destroyed, usedProtection: e.usedProtection, timestamp: e.timestamp,
+  }));
+}
+
+function historyFromSnapshot(h: readonly EnhancementHistorySnapshot[]): readonly EnhancementHistoryEntry[] {
+  return h.map((e) => ({
+    itemId: asItemId(e.itemId), previousLevel: e.previousLevel, attemptedLevel: e.attemptedLevel,
+    success: e.success, destroyed: e.destroyed, usedProtection: e.usedProtection, timestamp: e.timestamp,
+  }));
+}
+
+function professionsToSnapshot(m: ReadonlyMap<ProfessionId, ProfessionState>): Record<string, ProfessionStateSnapshot> {
+  const out: Record<string, ProfessionStateSnapshot> = {};
+  for (const [k, v] of m) out[k as string] = { level: v.level, experience: v.experience, mastery: v.mastery };
+  return out;
+}
+
+function professionsFromSnapshot(snap: Readonly<Record<string, ProfessionStateSnapshot>>): Map<ProfessionId, ProfessionState> {
+  const map = new Map<ProfessionId, ProfessionState>();
+  for (const [k, v] of Object.entries(snap)) map.set(asProfessionId(k), { level: v.level, experience: v.experience, mastery: v.mastery });
+  return map;
+}
+
+function activityToSnapshot(a: ActivityState): ActivitySnapshot {
+  return { kind: a.kind, targetId: a.targetId, startedAt: a.startedAt, cycleMs: a.cycleMs, batches: a.batches, completedActions: a.completedActions };
+}
+
+function activityFromSnapshot(snap: ActivitySnapshot | null): ActivityState | null {
+  if (!snap) return null;
+  return {
+    kind: snap.kind, targetId: snap.targetId, startedAt: snap.startedAt, cycleMs: snap.cycleMs,
+    batches: snap.batches, completedActions: snap.completedActions,
+    expectedActions: snap.batches,
+    endsAt: snap.startedAt + snap.cycleMs * snap.batches,
+  };
+}
+
+function farmToSnapshot(farm: FarmState): readonly FarmPlotSnapshot[] {
+  return farm.plots.map((p) => ({
+    id: p.id, cropNodeId: p.cropNodeId as string | null,
+    plantedAt: p.plantedAt, readyAt: p.readyAt,
+  }));
+}
+
+function farmFromSnapshot(snap: readonly FarmPlotSnapshot[]): FarmState {
+  if (snap.length === 0) return newFarmState(DEFAULT_PLOT_COUNT);
+  const plots: FarmPlot[] = snap.map((p) => ({
+    id: p.id,
+    cropNodeId: p.cropNodeId ? asNodeId(p.cropNodeId) : null,
+    plantedAt: p.plantedAt,
+    readyAt: p.readyAt,
+  }));
+  return { plotCount: plots.length, plots };
+}
+
+
+/* ==================== Serializacao Idle ==================== */
+
+function idleSetupToSnapshot(setup: IdleSetup): import('../persistence/save-schema').IdleConfigSnapshot {
+  return {
+    kind: setup.activity.kind,
+    targetId: setup.activity.kind === 'combat' ? (setup.activity.zoneId as string)
+      : setup.activity.kind === 'gathering' ? (setup.activity.nodeId as string)
+      : (setup.activity.recipeId as string),
+    batchesPerCycle: setup.activity.kind === 'production' ? setup.activity.batchesPerCycle : 1,
+    autoHpItemId: setup.autoHpItemId ? (setup.autoHpItemId as string) : null,
+    autoHpThreshold: setup.autoHpThreshold,
+  };
+}
+
+function idleSetupFromSnapshot(snap: import('../persistence/save-schema').IdleConfigSnapshot | null): IdleSetup | null {
+  if (!snap) return null;
+  let activity: IdleConfig;
+  if (snap.kind === 'combat') {
+    activity = { kind: 'combat', zoneId: asZoneId(snap.targetId) };
+  } else if (snap.kind === 'gathering') {
+    activity = { kind: 'gathering', nodeId: asNodeId(snap.targetId) };
+  } else {
+    activity = { kind: 'production', recipeId: asRecipeId(snap.targetId), batchesPerCycle: Math.max(1, snap.batchesPerCycle) };
+  }
+  return {
+    activity,
+    autoHpItemId: snap.autoHpItemId ? asItemId(snap.autoHpItemId) : null,
+    autoHpThreshold: snap.autoHpThreshold,
+  };
+}
+
+function idleReportToSnapshot(report: IdleReport): import('../persistence/save-schema').IdleReportSnapshot {
+  return {
+    startedAt: report.startedAt, endedAt: report.endedAt,
+    simulatedMs: report.simulatedMs, cappedMs: report.cappedMs, wasCapped: report.wasCapped,
+    config: idleSetupToSnapshot({ activity: report.config, autoHpItemId: null, autoHpThreshold: 0 }),
+    outcome: report.outcome,
+    xpGained: report.xpGained, silverGained: report.silverGained,
+    loot: report.loot.map((l) => ({ itemId: l.itemId as string, quantity: l.quantity })),
+    kills: report.kills, actions: report.actions, batches: report.batches,
+    consumablesUsed: report.consumablesUsed, notes: report.notes,
+  };
+}
+
+function idleReportFromSnapshot(snap: import('../persistence/save-schema').IdleReportSnapshot | null): IdleReport | null {
+  if (!snap) return null;
+  const setup = idleSetupFromSnapshot(snap.config);
+  if (!setup) return null;
+  return {
+    startedAt: snap.startedAt, endedAt: snap.endedAt,
+    simulatedMs: snap.simulatedMs, cappedMs: snap.cappedMs, wasCapped: snap.wasCapped,
+    config: setup.activity, outcome: snap.outcome as IdleReport['outcome'],
+    xpGained: snap.xpGained, silverGained: snap.silverGained,
+    loot: snap.loot.map((l) => ({ itemId: asItemId(l.itemId), quantity: l.quantity })),
+    kills: snap.kills, actions: snap.actions, batches: snap.batches,
+    consumablesUsed: snap.consumablesUsed, notes: snap.notes,
+  };
+}
+
+function emptyReport(fromMs: number, toMs: number, cappedMs: number, wasCapped: boolean, config: IdleConfig, outcome: IdleReport['outcome'], notes: string): IdleReport {
+  return {
+    startedAt: fromMs, endedAt: toMs, simulatedMs: cappedMs, cappedMs, wasCapped,
+    config, outcome,
+    xpGained: 0, silverGained: 0, loot: [], kills: 0, actions: 0, batches: 0,
+    consumablesUsed: 0, notes,
+  };
+}
+/* silencia imports reservados */
+void getPlot;
+void asRecipeId;
+void asProfessionId;
+
+export type { ItemId, MonsterId, ZoneId, SkillId, NodeId, RecipeId, ProfessionId };

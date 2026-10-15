@@ -1,0 +1,425 @@
+import type { SaveLatest, SaveV12, ItemStackSnapshot, EssenceInstanceSnapshot } from './save-schema';
+import { SAVE_SCHEMA_VERSION } from './save-schema';
+
+export class SaveParseError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SaveParseError';
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function migrateToLatest(input: unknown): SaveLatest {
+  if (!isRecord(input)) throw new SaveParseError('Save invalido: nao e um objeto.');
+  const version = input['schemaVersion'];
+  if (typeof version !== 'number' || !Number.isInteger(version)) {
+    throw new SaveParseError('Save invalido: schemaVersion ausente ou invalido.');
+  }
+  if (version > SAVE_SCHEMA_VERSION) {
+    throw new SaveParseError('Save de versao superior (' + version + ') nao pode ser carregado.');
+  }
+
+  let current: unknown = input;
+  let currentVersion = version;
+
+  while (currentVersion < SAVE_SCHEMA_VERSION) {
+    switch (currentVersion) {
+      case 1: current = migrateV1toV2(current); currentVersion = 2; break;
+      case 2: current = migrateV2toV3(current); currentVersion = 3; break;
+      case 3: current = migrateV3toV4(current); currentVersion = 4; break;
+      case 4: current = migrateV4toV5(current); currentVersion = 5; break;
+      case 5: current = migrateV5toV6(current); currentVersion = 6; break;
+      case 6: current = migrateV6toV7(current); currentVersion = 7; break;
+      case 7: current = migrateV7toV8(current); currentVersion = 8; break;
+      case 8: current = migrateV8toV9(current); currentVersion = 9; break;
+      case 9: current = migrateV9toV10(current); currentVersion = 10; break;
+      case 10: current = migrateV10toV11(current); currentVersion = 11; break;
+      case 11: current = migrateV11toV12(current); currentVersion = 12; break;
+      default: throw new SaveParseError('Sem migracao da versao ' + currentVersion + '.');
+    }
+  }
+
+  validateLatest(current);
+  return current;
+}
+
+/* ============ Helpers de slots ============ */
+
+function patchSlots(rawSlots: unknown): (ItemStackSnapshot | null)[] {
+  if (!Array.isArray(rawSlots)) return [];
+  return rawSlots.map((s) => {
+    if (!s || typeof s !== 'object') return null;
+    const rec = s as Record<string, unknown>;
+    return {
+      itemId: String(rec['itemId'] ?? ''),
+      quantity: Number(rec['quantity'] ?? 0),
+      enhancementLevel: Number(rec['enhancementLevel'] ?? 0),
+      durability: rec['durability'] === null || rec['durability'] === undefined ? null : Number(rec['durability']),
+      randomAttributes: null,
+      essences: null,
+      essenceLevel: null,
+    };
+  });
+}
+
+function patchEquipmentSlots(rawEq: unknown): Record<string, ItemStackSnapshot> {
+  if (!rawEq || typeof rawEq !== 'object') return {};
+  const out: Record<string, ItemStackSnapshot> = {};
+  for (const [k, v] of Object.entries(rawEq as Record<string, unknown>)) {
+    if (typeof v === 'string') {
+      out[k] = { itemId: v, quantity: 1, enhancementLevel: 0, durability: null, randomAttributes: null, essences: null, essenceLevel: null };
+    } else if (v && typeof v === 'object') {
+      const rec = v as Record<string, unknown>;
+      out[k] = {
+        itemId: String(rec['itemId'] ?? ''),
+        quantity: Number(rec['quantity'] ?? 1),
+        enhancementLevel: Number(rec['enhancementLevel'] ?? 0),
+        durability: rec['durability'] === null || rec['durability'] === undefined ? null : Number(rec['durability']),
+        randomAttributes: null,
+        essences: null,
+        essenceLevel: null,
+      };
+    }
+  }
+  return out;
+}
+
+/* ============ Migracoes ============ */
+
+function migrateV1toV2(v1: unknown): unknown {
+  if (!isRecord(v1)) throw new SaveParseError('V1 invalido.');
+  return {
+    schemaVersion: 2, savedAt: typeof v1['savedAt'] === 'number' ? v1['savedAt'] : Date.now(),
+    character: v1['character'], inventory: v1['inventory'], equipment: v1['equipment'],
+    combat: null,
+    combatConfig: { autoMode: true, useSkills: true, strategy: 'aggressive', skillPriority: [] },
+  };
+}
+
+function migrateV2toV3(v2: unknown): unknown {
+  if (!isRecord(v2)) throw new SaveParseError('V2 invalido.');
+  const inv = (v2['inventory'] && isRecord(v2['inventory'])) ? v2['inventory'] as Record<string, unknown> : {};
+  const eq = (v2['equipment'] && isRecord(v2['equipment'])) ? v2['equipment'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 3, savedAt: typeof v2['savedAt'] === 'number' ? v2['savedAt'] : Date.now(),
+    character: v2['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    combat: v2['combat'] ?? null,
+    combatConfig: v2['combatConfig'] ?? { autoMode: true, useSkills: true, strategy: 'aggressive', skillPriority: [] },
+    enhancementHistory: Array.isArray(v2['enhancementHistory']) ? v2['enhancementHistory'] : [],
+  };
+}
+
+function migrateV3toV4(v3: unknown): unknown {
+  if (!isRecord(v3)) throw new SaveParseError('V3 invalido.');
+  const inv = (v3['inventory'] && isRecord(v3['inventory'])) ? v3['inventory'] as Record<string, unknown> : {};
+  const eq = (v3['equipment'] && isRecord(v3['equipment'])) ? v3['equipment'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 4, savedAt: typeof v3['savedAt'] === 'number' ? v3['savedAt'] : Date.now(),
+    character: v3['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    combat: v3['combat'] ?? null,
+    combatConfig: v3['combatConfig'] ?? { autoMode: true, useSkills: true, strategy: 'aggressive', skillPriority: [] },
+    enhancementHistory: Array.isArray(v3['enhancementHistory']) ? v3['enhancementHistory'] : [],
+    professionStates: {}, activity: null,
+  };
+}
+
+function migrateV4toV5(v4: unknown): unknown {
+  if (!isRecord(v4)) throw new SaveParseError('V4 invalido.');
+  const inv = (v4['inventory'] && isRecord(v4['inventory'])) ? v4['inventory'] as Record<string, unknown> : {};
+  const eq = (v4['equipment'] && isRecord(v4['equipment'])) ? v4['equipment'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 5, savedAt: typeof v4['savedAt'] === 'number' ? v4['savedAt'] : Date.now(),
+    character: v4['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    combat: v4['combat'] ?? null,
+    combatConfig: v4['combatConfig'],
+    enhancementHistory: Array.isArray(v4['enhancementHistory']) ? v4['enhancementHistory'] : [],
+    professionStates: isRecord(v4['professionStates']) ? v4['professionStates'] : {},
+    activity: v4['activity'] ?? null,
+    buffs: [], farm: [],
+  };
+}
+
+function migrateV5toV6(v5: unknown): unknown {
+  if (!isRecord(v5)) throw new SaveParseError('V5 invalido.');
+  const inv = (v5['inventory'] && isRecord(v5['inventory'])) ? v5['inventory'] as Record<string, unknown> : {};
+  const eq = (v5['equipment'] && isRecord(v5['equipment'])) ? v5['equipment'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 6, savedAt: typeof v5['savedAt'] === 'number' ? v5['savedAt'] : Date.now(),
+    character: v5['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    warehouse: { capacity: 100, slots: [] },
+    combat: v5['combat'] ?? null,
+    combatConfig: v5['combatConfig'],
+    enhancementHistory: Array.isArray(v5['enhancementHistory']) ? v5['enhancementHistory'] : [],
+    professionStates: isRecord(v5['professionStates']) ? v5['professionStates'] : {},
+    activity: v5['activity'] ?? null,
+    buffs: Array.isArray(v5['buffs']) ? v5['buffs'] : [],
+    farm: Array.isArray(v5['farm']) ? v5['farm'] : [],
+    transactions: [],
+  };
+}
+
+function migrateV6toV7(v6: unknown): unknown {
+  if (!isRecord(v6)) throw new SaveParseError('V6 invalido.');
+  const inv = (v6['inventory'] && isRecord(v6['inventory'])) ? v6['inventory'] as Record<string, unknown> : {};
+  const eq = (v6['equipment'] && isRecord(v6['equipment'])) ? v6['equipment'] as Record<string, unknown> : {};
+  const wh = (v6['warehouse'] && isRecord(v6['warehouse'])) ? v6['warehouse'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 7, savedAt: typeof v6['savedAt'] === 'number' ? v6['savedAt'] : Date.now(),
+    character: v6['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    warehouse: { capacity: Number(wh['capacity'] ?? 100), slots: patchSlots(wh['slots']) },
+    combat: v6['combat'] ?? null,
+    combatConfig: v6['combatConfig'],
+    enhancementHistory: Array.isArray(v6['enhancementHistory']) ? v6['enhancementHistory'] : [],
+    professionStates: isRecord(v6['professionStates']) ? v6['professionStates'] : {},
+    activity: v6['activity'] ?? null,
+    buffs: Array.isArray(v6['buffs']) ? v6['buffs'] : [],
+    farm: Array.isArray(v6['farm']) ? v6['farm'] : [],
+    transactions: Array.isArray(v6['transactions']) ? v6['transactions'] : [],
+    idleSetup: null, lastIdleReport: null,
+  };
+}
+
+function migrateV7toV8(v7: unknown): unknown {
+  if (!isRecord(v7)) throw new SaveParseError('V7 invalido.');
+  const inv = (v7['inventory'] && isRecord(v7['inventory'])) ? v7['inventory'] as Record<string, unknown> : {};
+  const eq = (v7['equipment'] && isRecord(v7['equipment'])) ? v7['equipment'] as Record<string, unknown> : {};
+  const wh = (v7['warehouse'] && isRecord(v7['warehouse'])) ? v7['warehouse'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 8, savedAt: typeof v7['savedAt'] === 'number' ? v7['savedAt'] : Date.now(),
+    character: v7['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    warehouse: { capacity: Number(wh['capacity'] ?? 100), slots: patchSlots(wh['slots']) },
+    combat: v7['combat'] ?? null,
+    combatConfig: v7['combatConfig'],
+    enhancementHistory: Array.isArray(v7['enhancementHistory']) ? v7['enhancementHistory'] : [],
+    professionStates: isRecord(v7['professionStates']) ? v7['professionStates'] : {},
+    activity: v7['activity'] ?? null,
+    buffs: Array.isArray(v7['buffs']) ? v7['buffs'] : [],
+    farm: Array.isArray(v7['farm']) ? v7['farm'] : [],
+    transactions: Array.isArray(v7['transactions']) ? v7['transactions'] : [],
+    idleSetup: v7['idleSetup'] ?? null,
+    lastIdleReport: v7['lastIdleReport'] ?? null,
+    tutorial: null,
+  };
+}
+
+function migrateV8toV9(v8: unknown): unknown {
+  if (!isRecord(v8)) throw new SaveParseError('V8 invalido.');
+  const inv = (v8['inventory'] && isRecord(v8['inventory'])) ? v8['inventory'] as Record<string, unknown> : {};
+  const eq = (v8['equipment'] && isRecord(v8['equipment'])) ? v8['equipment'] as Record<string, unknown> : {};
+  const wh = (v8['warehouse'] && isRecord(v8['warehouse'])) ? v8['warehouse'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 9,
+    savedAt: typeof v8['savedAt'] === 'number' ? v8['savedAt'] : Date.now(),
+    character: v8['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    warehouse: { capacity: Number(wh['capacity'] ?? 100), slots: patchSlots(wh['slots']) },
+    combat: v8['combat'] ?? null,
+    combatConfig: v8['combatConfig'],
+    enhancementHistory: Array.isArray(v8['enhancementHistory']) ? v8['enhancementHistory'] : [],
+    professionStates: isRecord(v8['professionStates']) ? v8['professionStates'] : {},
+    activity: v8['activity'] ?? null,
+    buffs: Array.isArray(v8['buffs']) ? v8['buffs'] : [],
+    farm: Array.isArray(v8['farm']) ? v8['farm'] : [],
+    transactions: Array.isArray(v8['transactions']) ? v8['transactions'] : [],
+    idleSetup: v8['idleSetup'] ?? null,
+    lastIdleReport: v8['lastIdleReport'] ?? null,
+    tutorial: v8['tutorial'] ?? null,
+  };
+}
+
+function migrateV9toV10(v9: unknown): unknown {
+  if (!isRecord(v9)) throw new SaveParseError('V9 invalido.');
+  const inv = (v9['inventory'] && isRecord(v9['inventory'])) ? v9['inventory'] as Record<string, unknown> : {};
+  const eq = (v9['equipment'] && isRecord(v9['equipment'])) ? v9['equipment'] as Record<string, unknown> : {};
+  const wh = (v9['warehouse'] && isRecord(v9['warehouse'])) ? v9['warehouse'] as Record<string, unknown> : {};
+  return {
+    schemaVersion: 10,
+    savedAt: typeof v9['savedAt'] === 'number' ? v9['savedAt'] : Date.now(),
+    character: v9['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlots(inv['slots']) },
+    warehouse: { capacity: Number(wh['capacity'] ?? 100), slots: patchSlots(wh['slots']) },
+    equipment: { slots: patchEquipmentSlots(eq['slots']) },
+    combat: v9['combat'] ?? null,
+    combatConfig: v9['combatConfig'],
+    enhancementHistory: Array.isArray(v9['enhancementHistory']) ? v9['enhancementHistory'] : [],
+    professionStates: isRecord(v9['professionStates']) ? v9['professionStates'] : {},
+    activity: v9['activity'] ?? null,
+    buffs: Array.isArray(v9['buffs']) ? v9['buffs'] : [],
+    farm: Array.isArray(v9['farm']) ? v9['farm'] : [],
+    transactions: Array.isArray(v9['transactions']) ? v9['transactions'] : [],
+    idleSetup: v9['idleSetup'] ?? null,
+    lastIdleReport: v9['lastIdleReport'] ?? null,
+    tutorial: v9['tutorial'] ?? null,
+    quests: [],
+  };
+}
+
+function migrateV10toV11(v10: unknown): unknown {
+  if (!isRecord(v10)) throw new SaveParseError('V10 invalido.');
+  const inv = (v10['inventory'] && isRecord(v10['inventory'])) ? v10['inventory'] as Record<string, unknown> : {};
+  const eq = (v10['equipment'] && isRecord(v10['equipment'])) ? v10['equipment'] as Record<string, unknown> : {};
+  const wh = (v10['warehouse'] && isRecord(v10['warehouse'])) ? v10['warehouse'] as Record<string, unknown> : {};
+  const patchSlotsV11 = (rawSlots: unknown): (ItemStackSnapshot | null)[] => {
+    if (!Array.isArray(rawSlots)) return [];
+    return rawSlots.map((s) => {
+      if (!s || typeof s !== 'object') return null;
+      const rec = s as Record<string, unknown>;
+      return {
+        itemId: String(rec['itemId'] ?? ''),
+        quantity: Number(rec['quantity'] ?? 0),
+        enhancementLevel: Number(rec['enhancementLevel'] ?? 0),
+        durability: rec['durability'] === null || rec['durability'] === undefined ? null : Number(rec['durability']),
+        randomAttributes: Array.isArray(rec['randomAttributes']) ? (rec['randomAttributes'] as readonly { kind: string; value: number }[]) : null,
+        essences: null,
+        essenceLevel: null,
+      };
+    });
+  };
+  const patchEqV11 = (rawEq: unknown): Record<string, ItemStackSnapshot> => {
+    if (!rawEq || typeof rawEq !== 'object') return {};
+    const out: Record<string, ItemStackSnapshot> = {};
+    for (const [k, v] of Object.entries(rawEq as Record<string, unknown>)) {
+      if (v && typeof v === 'object') {
+        const rec = v as Record<string, unknown>;
+        out[k] = {
+          itemId: String(rec['itemId'] ?? ''),
+          quantity: Number(rec['quantity'] ?? 1),
+          enhancementLevel: Number(rec['enhancementLevel'] ?? 0),
+          durability: rec['durability'] === null || rec['durability'] === undefined ? null : Number(rec['durability']),
+          randomAttributes: Array.isArray(rec['randomAttributes']) ? (rec['randomAttributes'] as readonly { kind: string; value: number }[]) : null,
+          essences: null,
+          essenceLevel: null,
+        };
+      }
+    }
+    return out;
+  };
+  return {
+    schemaVersion: 11,
+    savedAt: typeof v10['savedAt'] === 'number' ? v10['savedAt'] : Date.now(),
+    character: v10['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlotsV11(inv['slots']) },
+    warehouse: { capacity: Number(wh['capacity'] ?? 100), slots: patchSlotsV11(wh['slots']) },
+    equipment: { slots: patchEqV11(eq['slots']) },
+    combat: v10['combat'] ?? null,
+    combatConfig: v10['combatConfig'],
+    enhancementHistory: Array.isArray(v10['enhancementHistory']) ? v10['enhancementHistory'] : [],
+    professionStates: isRecord(v10['professionStates']) ? v10['professionStates'] : {},
+    activity: v10['activity'] ?? null,
+    buffs: Array.isArray(v10['buffs']) ? v10['buffs'] : [],
+    farm: Array.isArray(v10['farm']) ? v10['farm'] : [],
+    transactions: Array.isArray(v10['transactions']) ? v10['transactions'] : [],
+    idleSetup: v10['idleSetup'] ?? null,
+    lastIdleReport: v10['lastIdleReport'] ?? null,
+    tutorial: v10['tutorial'] ?? null,
+    quests: Array.isArray(v10['quests']) ? v10['quests'] : [],
+  };
+}
+
+function migrateV11toV12(v11: unknown): SaveV12 {
+  if (!isRecord(v11)) throw new SaveParseError('V11 invalido.');
+  if (!isRecord(v11['character']) || !isRecord(v11['equipment']) || !isRecord(v11['combatConfig'])) {
+    throw new SaveParseError('V11 incompleto.');
+  }
+  const inv = (v11['inventory'] && isRecord(v11['inventory'])) ? v11['inventory'] as Record<string, unknown> : {};
+  const eq = (v11['equipment'] && isRecord(v11['equipment'])) ? v11['equipment'] as Record<string, unknown> : {};
+  const wh = (v11['warehouse'] && isRecord(v11['warehouse'])) ? v11['warehouse'] as Record<string, unknown> : {};
+
+  const convertEssences = (raw: unknown): readonly (EssenceInstanceSnapshot | null)[] | null => {
+    if (!Array.isArray(raw)) return null;
+    return raw.map((e) => {
+      if (e === null || e === undefined) return null;
+      if (typeof e === 'string') return { itemId: e, level: 1 };
+      if (typeof e === 'object') {
+        const rec = e as Record<string, unknown>;
+        return { itemId: String(rec['itemId'] ?? ''), level: Number(rec['level'] ?? 1) };
+      }
+      return null;
+    });
+  };
+
+  const patchSlotsV12 = (rawSlots: unknown): (ItemStackSnapshot | null)[] => {
+    if (!Array.isArray(rawSlots)) return [];
+    return rawSlots.map((s) => {
+      if (!s || typeof s !== 'object') return null;
+      const rec = s as Record<string, unknown>;
+      return {
+        itemId: String(rec['itemId'] ?? ''),
+        quantity: Number(rec['quantity'] ?? 0),
+        enhancementLevel: Number(rec['enhancementLevel'] ?? 0),
+        durability: rec['durability'] === null || rec['durability'] === undefined ? null : Number(rec['durability']),
+        randomAttributes: Array.isArray(rec['randomAttributes']) ? (rec['randomAttributes'] as readonly { kind: string; value: number }[]) : null,
+        essences: convertEssences(rec['essences']),
+        essenceLevel: rec['essenceLevel'] === null || rec['essenceLevel'] === undefined ? null : Number(rec['essenceLevel']),
+      };
+    });
+  };
+  const patchEqV12 = (rawEq: unknown): Record<string, ItemStackSnapshot> => {
+    if (!rawEq || typeof rawEq !== 'object') return {};
+    const out: Record<string, ItemStackSnapshot> = {};
+    for (const [k, v] of Object.entries(rawEq as Record<string, unknown>)) {
+      if (v && typeof v === 'object') {
+        const rec = v as Record<string, unknown>;
+        out[k] = {
+          itemId: String(rec['itemId'] ?? ''),
+          quantity: Number(rec['quantity'] ?? 1),
+          enhancementLevel: Number(rec['enhancementLevel'] ?? 0),
+          durability: rec['durability'] === null || rec['durability'] === undefined ? null : Number(rec['durability']),
+          randomAttributes: Array.isArray(rec['randomAttributes']) ? (rec['randomAttributes'] as readonly { kind: string; value: number }[]) : null,
+          essences: convertEssences(rec['essences']),
+          essenceLevel: rec['essenceLevel'] === null || rec['essenceLevel'] === undefined ? null : Number(rec['essenceLevel']),
+        };
+      }
+    }
+    return out;
+  };
+
+  return {
+    schemaVersion: 12,
+    savedAt: typeof v11['savedAt'] === 'number' ? v11['savedAt'] : Date.now(),
+    character: v11['character'] as unknown as SaveV12['character'],
+    inventory: { capacity: Number(inv['capacity'] ?? 40), slots: patchSlotsV12(inv['slots']) },
+    warehouse: { capacity: Number(wh['capacity'] ?? 100), slots: patchSlotsV12(wh['slots']) },
+    equipment: { slots: patchEqV12(eq['slots']) },
+    combat: (v11['combat'] as unknown as SaveV12['combat']) ?? null,
+    combatConfig: v11['combatConfig'] as unknown as SaveV12['combatConfig'],
+    enhancementHistory: Array.isArray(v11['enhancementHistory']) ? (v11['enhancementHistory'] as SaveV12['enhancementHistory']) : [],
+    professionStates: isRecord(v11['professionStates']) ? (v11['professionStates'] as SaveV12['professionStates']) : {},
+    activity: (v11['activity'] as SaveV12['activity']) ?? null,
+    buffs: Array.isArray(v11['buffs']) ? (v11['buffs'] as SaveV12['buffs']) : [],
+    farm: Array.isArray(v11['farm']) ? (v11['farm'] as SaveV12['farm']) : [],
+    transactions: Array.isArray(v11['transactions']) ? (v11['transactions'] as SaveV12['transactions']) : [],
+    idleSetup: (v11['idleSetup'] as SaveV12['idleSetup']) ?? null,
+    lastIdleReport: (v11['lastIdleReport'] as SaveV12['lastIdleReport']) ?? null,
+    tutorial: (v11['tutorial'] as SaveV12['tutorial']) ?? null,
+    quests: Array.isArray(v11['quests']) ? (v11['quests'] as SaveV12['quests']) : [],
+  };
+}
+
+function validateLatest(value: unknown): asserts value is SaveLatest {
+  if (!isRecord(value)) throw new SaveParseError('Save final invalido.');
+  if (value['schemaVersion'] !== SAVE_SCHEMA_VERSION) throw new SaveParseError('Versao inesperada.');
+  if (!isRecord(value['character'])) throw new SaveParseError('Sem personagem.');
+  if (!isRecord(value['inventory'])) throw new SaveParseError('Sem inventario.');
+  if (!isRecord(value['warehouse'])) throw new SaveParseError('Sem armazem.');
+  if (!isRecord(value['equipment'])) throw new SaveParseError('Sem equipamento.');
+  if (!isRecord(value['combatConfig'])) throw new SaveParseError('Sem combatConfig.');
+  if (!Array.isArray(value['quests'])) throw new SaveParseError('Sem quests.');
+  if (typeof value['savedAt'] !== 'number') throw new SaveParseError('Sem savedAt.');
+}

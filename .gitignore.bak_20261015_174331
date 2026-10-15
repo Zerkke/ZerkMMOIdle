@@ -1,0 +1,11 @@
+node_modules/
+dist/
+coverage/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*

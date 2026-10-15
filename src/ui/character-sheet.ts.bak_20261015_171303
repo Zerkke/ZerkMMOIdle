@@ -1,0 +1,417 @@
+// src/ui/character-sheet.ts
+// Character Sheet unificado: slots + stats + inventario com filtros.
+// Nao substitui equipment-panel.ts nem inventory-panel.ts.
+
+import type { GameServices } from '../services/game-services';
+import { EQUIP_SLOTS } from '../domain/equipment';
+import { isEquippable, isTool } from '../domain/content';
+import { renderItemCell } from './item-cell';
+import { createButton } from './button';
+import { createIcon } from './icons';
+
+// ---------- Estado local da vista ----------
+type CategoryFilter = 'all' | 'equip' | 'material' | 'consumable' | 'essence';
+type SortMode = 'type' | 'rarity' | 'name';
+type RarityFilter = 'all' | 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+interface SheetState {
+  filter: CategoryFilter;
+  sort: SortMode;
+  rarity: RarityFilter;
+}
+
+const RARITY_ORDER: Record<string, number> = {
+  common: 0, uncommon: 1, rare: 2, epic: 3, legendary: 4,
+};
+
+// ---------- Entry point ----------
+export function renderCharacterSheet(services: GameServices): HTMLElement {
+  const state: SheetState = { filter: 'all', sort: 'type', rarity: 'all' };
+  const root = document.createElement('div');
+  root.className = 'sheet';
+
+  const rerender = (): void => {
+    root.innerHTML = '';
+    root.appendChild(buildHeader(services));
+    root.appendChild(buildBody(services, state, rerender));
+  };
+
+  rerender();
+  return root;
+}
+
+// ---------- Header ----------
+function buildHeader(services: GameServices): HTMLElement {
+  const header = document.createElement('div');
+  header.className = 'sheet__header';
+
+  const title = document.createElement('div');
+  title.className = 'sheet__title';
+  title.textContent = 'INVENTORY & EQUIPMENT';
+  header.appendChild(title);
+
+  const wallet = document.createElement('div');
+  wallet.className = 'sheet__wallet';
+
+  const char = services.getCharacter();
+
+  const silver = document.createElement('span');
+  silver.className = 'sheet__wallet-item';
+  silver.innerHTML = '<b>Prata</b> ' + char.silver.toLocaleString('pt-PT');
+  wallet.appendChild(silver);
+
+  const level = document.createElement('span');
+  level.className = 'sheet__wallet-item';
+  level.innerHTML = '<b>Nivel</b> ' + char.level;
+  wallet.appendChild(level);
+
+  header.appendChild(wallet);
+  return header;
+}
+
+// ---------- Body (3 colunas) ----------
+function buildBody(
+  services: GameServices,
+  state: SheetState,
+  rerender: () => void,
+): HTMLElement {
+  const body = document.createElement('div');
+  body.className = 'sheet__body';
+
+  body.appendChild(buildSlotsColumn(services, rerender));
+  body.appendChild(buildStatsColumn(services));
+  body.appendChild(buildInventoryColumn(services, state, rerender));
+
+  return body;
+}
+
+// ---------- Coluna 1: Slots ----------
+function buildSlotsColumn(services: GameServices, rerender: () => void): HTMLElement {
+  const col = document.createElement('div');
+  col.className = 'sheet__col sheet__col--slots';
+
+  const heading = document.createElement('h3');
+  heading.className = 'sheet__col-title';
+  heading.textContent = 'EQUIPAMENTO';
+  col.appendChild(heading);
+
+  const grid = document.createElement('div');
+  grid.className = 'sheet__slot-grid';
+
+  const equip = services.getEquipment();
+
+  for (const slot of EQUIP_SLOTS) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet__slot';
+
+    const stack = equip.get(slot.id);
+    if (stack) {
+      const def = services.registry.getItem(stack.itemId);
+      if (def) {
+        const cell = renderItemCell({
+          itemId: stack.itemId as string,
+          itemName: def.name,
+          itemCategory: def.category,
+          itemRarity: def.rarity,
+          quantity: 1,
+          enhancementLevel: stack.enhancementLevel,
+          randomAttributes: stack.randomAttributes,
+          essences: stack.essences ? stack.essences.map((e) => e ? (e.itemId as string) : null) : null,
+          ap: def.attackPower,
+          dp: def.defensePower,
+          onClick: () => { services.unequipToInventory(slot.id); rerender(); },
+          title: slot.label + ': ' + def.name + ' (clica para remover)',
+        });
+        cell.classList.add('sheet__slot-cell');
+        wrap.appendChild(cell);
+      }
+    } else {
+      const empty = document.createElement('div');
+      empty.className = 'sheet__slot-empty';
+      empty.title = slot.label;
+      empty.appendChild(createIcon(slotIconFor(slot.id), 26));
+      wrap.appendChild(empty);
+    }
+
+    const label = document.createElement('div');
+    label.className = 'sheet__slot-label';
+    label.textContent = slot.label;
+    wrap.appendChild(label);
+
+    grid.appendChild(wrap);
+  }
+
+  col.appendChild(grid);
+  return col;
+}
+
+// ---------- Coluna 2: Stats ----------
+function buildStatsColumn(services: GameServices): HTMLElement {
+  const col = document.createElement('div');
+  col.className = 'sheet__col sheet__col--stats';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'sheet__avatar';
+  avatar.appendChild(createIcon('user', 64));
+  col.appendChild(avatar);
+
+  const char = services.getCharacter();
+  const nameEl = document.createElement('div');
+  nameEl.className = 'sheet__char-name';
+  nameEl.textContent = char.name;
+  col.appendChild(nameEl);
+
+  const derived = services.getDerivedStats();
+
+  const stats: { label: string; value: string }[] = [
+    { label: 'AP', value: String(derived.ap) },
+    { label: 'DP', value: String(derived.dp) },
+    { label: 'HP', value: String(derived.maxHp) },
+    { label: 'Critico', value: (derived.criticalChance * 100).toFixed(1) + '%' },
+    { label: 'Dano', value: String(derived.attack) },
+    { label: 'Defesa', value: String(derived.defense) },
+  ];
+
+  const grid = document.createElement('div');
+  grid.className = 'sheet__stats-grid';
+  for (const s of stats) {
+    const cell = document.createElement('div');
+    cell.className = 'sheet__stat';
+    const l = document.createElement('span');
+    l.className = 'sheet__stat-label';
+    l.textContent = s.label;
+    const v = document.createElement('span');
+    v.className = 'sheet__stat-value';
+    v.textContent = s.value;
+    cell.appendChild(l);
+    cell.appendChild(v);
+    grid.appendChild(cell);
+  }
+  col.appendChild(grid);
+
+  return col;
+}
+
+// ---------- Coluna 3: Inventario ----------
+function buildInventoryColumn(
+  services: GameServices,
+  state: SheetState,
+  rerender: () => void,
+): HTMLElement {
+  const col = document.createElement('div');
+  col.className = 'sheet__col sheet__col--inv';
+
+  const heading = document.createElement('h3');
+  heading.className = 'sheet__col-title';
+  heading.textContent = 'INVENTARIO';
+  col.appendChild(heading);
+
+  col.appendChild(buildFilters(state, rerender));
+
+  const grid = document.createElement('div');
+  grid.className = 'sheet__inv-grid';
+
+  const inv = services.getInventory();
+  const allSlots = inv.list();
+
+  // Constroi lista com indices e ordena/filtra
+  const items: { index: number; slot: NonNullable<typeof allSlots[number]>; def: NonNullable<ReturnType<typeof services.registry.getItem>> }[] = [];
+  for (let i = 0; i < allSlots.length; i++) {
+    const s = allSlots[i];
+    if (!s) continue;
+    const def = services.registry.getItem(s.itemId);
+    if (!def) continue;
+    if (!passesFilter(def, state.filter)) continue;
+    if (!passesRarity(def, state.rarity)) continue;
+    items.push({ index: i, slot: s, def });
+  }
+
+  items.sort((a, b) => compareItems(a.def, b.def, state.sort));
+
+  if (items.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'sheet__inv-empty';
+    empty.textContent = 'Sem itens que correspondam aos filtros.';
+    grid.appendChild(empty);
+  }
+
+  for (const { index, slot, def } of items) {
+    const cell = renderItemCell({
+      itemId: slot.itemId as string,
+      itemName: def.name,
+      itemCategory: def.category,
+      itemRarity: def.rarity,
+      quantity: slot.quantity,
+      enhancementLevel: slot.enhancementLevel,
+      durability: isTool(def) ? slot.durability : null,
+      maxDurability: isTool(def) ? def.maxDurability : undefined,
+      randomAttributes: slot.randomAttributes,
+      essences: slot.essences ? slot.essences.map((e) => e ? (e.itemId as string) : null) : null,
+      ap: def.attackPower,
+      dp: def.defensePower,
+      onClick: () => { handleItemClick(services, index); rerender(); },
+    });
+    if (isEquippable(def)) cell.classList.add('item-cell--equippable');
+    if (def.appliesBuffId) cell.classList.add('item-cell--consumable');
+    grid.appendChild(cell);
+  }
+
+  col.appendChild(grid);
+  col.appendChild(buildBottomActions(services, state, rerender));
+  return col;
+}
+
+// ---------- Filtros ----------
+function buildFilters(
+  state: SheetState,
+  rerender: () => void,
+): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'sheet__filters';
+
+  const filtros: { id: CategoryFilter; label: string }[] = [
+    { id: 'all', label: 'TUDO' },
+    { id: 'equip', label: 'EQUIP' },
+    { id: 'material', label: 'MATS' },
+    { id: 'consumable', label: 'CONS' },
+    { id: 'essence', label: 'ESS' },
+  ];
+
+  for (const f of filtros) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sheet__filter' + (state.filter === f.id ? ' sheet__filter--active' : '');
+    b.textContent = f.label;
+    b.addEventListener('click', () => { state.filter = f.id; rerender(); });
+    bar.appendChild(b);
+  }
+
+  return bar;
+}
+
+// ---------- Bottom actions ----------
+function buildBottomActions(
+  services: GameServices,
+  state: SheetState,
+  rerender: () => void,
+): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'sheet__actions';
+
+  // Sort cycle: type -> rarity -> name
+  const sortLabels: Record<SortMode, string> = {
+    type: 'Ordenar: Tipo',
+    rarity: 'Ordenar: Raridade',
+    name: 'Ordenar: Nome',
+  };
+  bar.appendChild(createButton({
+    label: sortLabels[state.sort],
+    icon: 'briefcase',
+    onClick: () => {
+      state.sort = state.sort === 'type' ? 'rarity' : state.sort === 'rarity' ? 'name' : 'type';
+      rerender();
+    },
+  }));
+
+  // Rarity cycle: all -> uncommon -> rare -> epic -> legendary -> all
+  const rarityCycle: RarityFilter[] = ['all', 'uncommon', 'rare', 'epic', 'legendary'];
+  const rarityLabels: Record<RarityFilter, string> = {
+    all: 'Todas raridades',
+    common: 'Comum',
+    uncommon: 'Incomum+',
+    rare: 'Raro+',
+    epic: 'Epico+',
+    legendary: 'Lendario',
+  };
+  bar.appendChild(createButton({
+    label: rarityLabels[state.rarity],
+    icon: 'sparkles',
+    onClick: () => {
+      const idx = rarityCycle.indexOf(state.rarity);
+      state.rarity = rarityCycle[(idx + 1) % rarityCycle.length] ?? 'all';
+      rerender();
+    },
+  }));
+
+  // Sell all junk (< uncommon, sem enhancement, sem rolls/essencias)
+  bar.appendChild(createButton({
+    label: 'Vender lixo',
+    icon: 'briefcase',
+    variant: 'primary',
+    onClick: () => {
+      const inv = services.getInventory();
+      const slots = inv.list();
+      let sold = 0;
+      // Loop de tras para a frente porque vender remove/atualiza slots
+      for (let i = slots.length - 1; i >= 0; i--) {
+        const s = slots[i];
+        if (!s) continue;
+        const def = services.registry.getItem(s.itemId);
+        if (!def) continue;
+        if (def.rarity !== 'common') continue;
+        if (s.enhancementLevel > 0) continue;
+        if (s.randomAttributes && s.randomAttributes.length > 0) continue;
+        if (s.essences && s.essences.some((e) => e !== null)) continue;
+        if (isEquippable(def)) continue; // nao vender equipamento equipavel
+        if (services.sellToNpc(i, s.quantity)) sold++;
+      }
+      // sellToNpc ja emite o notice por item vendido
+      rerender();
+    },
+  }));
+
+  return bar;
+}
+
+// ---------- Helpers ----------
+function passesFilter(def: { category: string }, filter: CategoryFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'equip') return def.category === 'weapon' || def.category === 'armor' || def.category === 'accessory' || def.category === 'tool';
+  if (filter === 'material') return def.category === 'material' || def.category === 'seed' || def.category === 'crop' || def.category === 'fish' || def.category === 'meat';
+  if (filter === 'consumable') return def.category === 'consumable';
+  if (filter === 'essence') return def.category === 'essence';
+  return true;
+}
+
+function passesRarity(def: { rarity: string }, rarity: RarityFilter): boolean {
+  if (rarity === 'all') return true;
+  const order = RARITY_ORDER[def.rarity] ?? 0;
+  const req = RARITY_ORDER[rarity] ?? 0;
+  // Incomum+ significa incomum ou superior
+  if (rarity === 'uncommon' || rarity === 'rare' || rarity === 'epic') return order >= req;
+  return order === req;
+}
+
+function compareItems(a: { category: string; rarity: string; name: string }, b: { category: string; rarity: string; name: string }, mode: SortMode): number {
+  if (mode === 'name') return a.name.localeCompare(b.name);
+  if (mode === 'rarity') {
+    const ra = RARITY_ORDER[a.rarity] ?? 0;
+    const rb = RARITY_ORDER[b.rarity] ?? 0;
+    if (rb !== ra) return rb - ra;
+    return a.name.localeCompare(b.name);
+  }
+  // type
+  if (a.category !== b.category) return a.category.localeCompare(b.category);
+  const ra = RARITY_ORDER[a.rarity] ?? 0;
+  const rb = RARITY_ORDER[b.rarity] ?? 0;
+  if (rb !== ra) return rb - ra;
+  return a.name.localeCompare(b.name);
+}
+
+function handleItemClick(services: GameServices, index: number): void {
+  const slot = services.getInventory().list()[index];
+  if (!slot) return;
+  const def = services.registry.getItem(slot.itemId);
+  if (!def) return;
+  if (def.appliesBuffId) { services.consumeItem(index); return; }
+  if (isEquippable(def)) services.equipFromInventory(index);
+}
+
+function slotIconFor(slotId: string): 'sword' | 'shield' | 'armor' | 'ring' | 'hammer' | 'briefcase' {
+  if (slotId === 'weapon') return 'sword';
+  if (slotId === 'offhand') return 'shield';
+  if (slotId === 'ring1' || slotId === 'ring2') return 'ring';
+  if (slotId === 'necklace' || slotId === 'earring1' || slotId === 'earring2') return 'ring';
+  if (slotId === 'tool') return 'hammer';
+  return 'armor';
+}

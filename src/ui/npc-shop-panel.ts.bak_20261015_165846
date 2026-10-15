@@ -1,0 +1,297 @@
+import type { GameServices } from '../services/game-services';
+import { renderPanelHeader, renderSectionTitle } from './panel-header';
+import { renderItemCell } from './item-cell';
+import { createIcon } from './icons';
+import { npcBuybackPrice } from '../data/npc-shop.data';
+import type { ItemId } from '../domain/ids';
+
+const MAX_QTY = 999;
+
+export function renderNpcShopPanel(services: GameServices): HTMLElement {
+  const root = document.createElement('div');
+  root.className = 'panel-content';
+
+  const buyQty = new Map<string, number>();
+  const sellQty = new Map<number, number>();
+
+  const rerender = (): void => {
+    root.innerHTML = '';
+
+    root.appendChild(renderPanelHeader({
+      icon: 'cart',
+      title: 'Mercador',
+      subtitle: 'Compra e vende items por prata',
+    }));
+
+    root.appendChild(renderSilverBar(services));
+
+    // ==================== COMPRAR ====================
+    root.appendChild(renderSectionTitle('Comprar'));
+    const buyList = document.createElement('div');
+    buyList.className = 'shop-list';
+
+    for (const entry of services.getShopCatalog()) {
+      const def = services.registry.getItem(entry.itemId);
+      if (!def) continue;
+      const qty = buyQty.get(entry.itemId as string) ?? 1;
+      buyList.appendChild(renderBuyRow(services, entry.itemId, def, entry.buyPrice, qty, buyQty, rerender));
+    }
+    root.appendChild(buyList);
+
+    // ==================== VENDER ====================
+    root.appendChild(renderSectionTitle('Vender'));
+
+    const inv = services.getInventory();
+    const slots = inv.list();
+    const sellList = document.createElement('div');
+    sellList.className = 'shop-list';
+    let sellable = 0;
+
+    for (let i = 0; i < slots.length; i++) {
+      const s = slots[i];
+      if (!s) continue;
+      const def = services.registry.getItem(s.itemId);
+      if (!def || def.sellPrice <= 0) continue;
+      sellable++;
+
+      const maxQty = s.quantity;
+      const current = Math.min(sellQty.get(i) ?? 1, maxQty);
+      sellList.appendChild(renderSellRow(services, i, def, current, maxQty, s.enhancementLevel, sellQty, rerender));
+    }
+
+    if (sellable === 0) {
+      const empty = document.createElement('p');
+      empty.className = 'panel-state panel-state--empty';
+      empty.textContent = 'Nada para vender.';
+      root.appendChild(empty);
+    } else {
+      root.appendChild(sellList);
+    }
+  };
+
+  rerender();
+  return root;
+}
+
+// ============================================================
+// Silver bar
+// ============================================================
+function renderSilverBar(services: GameServices): HTMLElement {
+  const bar = document.createElement('div');
+  bar.className = 'shop-silver-bar';
+
+  const char = services.getCharacter();
+  const coin = createIcon('coin', 14);
+  bar.appendChild(coin);
+
+  const label = document.createElement('span');
+  label.className = 'shop-silver-bar__label';
+  label.innerHTML = 'Tens <b>' + char.silver.toLocaleString('pt-PT') + '</b> prata';
+  bar.appendChild(label);
+
+  return bar;
+}
+
+// ============================================================
+// Comprar - linha com controlos
+// ============================================================
+function renderBuyRow(
+  services: GameServices,
+  itemId: ItemId,
+  def: ReturnType<GameServices['registry']['getItem']> & object,
+  unitPrice: number,
+  qty: number,
+  state: Map<string, number>,
+  rerender: () => void,
+): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'shop-row';
+
+  const cellWrap = document.createElement('div');
+  cellWrap.className = 'shop-row__cell';
+  const cell = renderItemCell({
+    itemId: itemId as string,
+    itemName: def.name,
+    itemCategory: def.category,
+    itemRarity: def.rarity,
+    quantity: 1,
+    title: def.name + ' — ' + unitPrice + ' prata/unidade',
+  });
+  cellWrap.appendChild(cell);
+  row.appendChild(cellWrap);
+
+  const ctrl = document.createElement('div');
+  ctrl.className = 'shop-row__ctrl';
+
+  const total = qty * unitPrice;
+  const char = services.getCharacter();
+  const affordable = total <= char.silver;
+  const maxAfford = Math.max(1, Math.floor(char.silver / unitPrice));
+
+  ctrl.appendChild(buildQtyRow(qty, (v) => {
+    state.set(itemId as string, clamp(v, 1, MAX_QTY));
+    rerender();
+  }));
+
+  ctrl.appendChild(buildQuickRow(qty, [1, 5, 10, Math.min(maxAfford, MAX_QTY)], (v) => {
+    state.set(itemId as string, clamp(v, 1, MAX_QTY));
+    rerender();
+  }));
+
+  const totalEl = document.createElement('div');
+  totalEl.className = 'shop-row__total' + (affordable ? '' : ' shop-row__total--error');
+  totalEl.innerHTML = 'Total: <b>' + total.toLocaleString('pt-PT') + '</b> prata';
+  ctrl.appendChild(totalEl);
+
+  const buyBtn = document.createElement('button');
+  buyBtn.type = 'button';
+  buyBtn.className = 'shop-row__action';
+  buyBtn.textContent = 'Comprar ' + qty;
+  if (!affordable) {
+    buyBtn.disabled = true;
+    buyBtn.classList.add('shop-row__action--disabled');
+  }
+  buyBtn.addEventListener('click', () => {
+    if (services.buyFromNpc(itemId, qty)) {
+      state.set(itemId as string, 1);
+      rerender();
+    }
+  });
+  ctrl.appendChild(buyBtn);
+
+  row.appendChild(ctrl);
+  return row;
+}
+
+// ============================================================
+// Vender - linha com controlos
+// ============================================================
+function renderSellRow(
+  services: GameServices,
+  slotIndex: number,
+  def: { name: string; category: string; rarity: string; sellPrice: number },
+  qty: number,
+  maxQty: number,
+  enhLevel: number,
+  state: Map<number, number>,
+  rerender: () => void,
+): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'shop-row';
+
+  const inv = services.getInventory();
+  const slot = inv.list()[slotIndex];
+
+  const cellWrap = document.createElement('div');
+  cellWrap.className = 'shop-row__cell';
+  const cell = renderItemCell({
+    itemId: slot?.itemId as string,
+    itemName: def.name,
+    itemCategory: def.category,
+    itemRarity: def.rarity,
+    quantity: maxQty,
+    enhancementLevel: enhLevel,
+    title: def.name + ' — ' + npcBuybackPrice(def.sellPrice) + ' prata/unidade',
+  });
+  cellWrap.appendChild(cell);
+  row.appendChild(cellWrap);
+
+  const ctrl = document.createElement('div');
+  ctrl.className = 'shop-row__ctrl';
+
+  const unitPrice = npcBuybackPrice(def.sellPrice);
+  const total = qty * unitPrice;
+
+  ctrl.appendChild(buildQtyRow(qty, (v) => {
+    state.set(slotIndex, clamp(v, 1, maxQty));
+    rerender();
+  }));
+
+  ctrl.appendChild(buildQuickRow(qty, [1, 5, 10, maxQty], (v) => {
+    state.set(slotIndex, clamp(v, 1, maxQty));
+    rerender();
+  }));
+
+  const totalEl = document.createElement('div');
+  totalEl.className = 'shop-row__total shop-row__total--sell';
+  totalEl.innerHTML = 'Recebes: <b>' + total.toLocaleString('pt-PT') + '</b> prata';
+  ctrl.appendChild(totalEl);
+
+  const sellBtn = document.createElement('button');
+  sellBtn.type = 'button';
+  sellBtn.className = 'shop-row__action shop-row__action--sell';
+  sellBtn.textContent = 'Vender ' + qty;
+  sellBtn.addEventListener('click', () => {
+    if (services.sellToNpc(slotIndex, qty)) {
+      state.delete(slotIndex);
+      rerender();
+    }
+  });
+  ctrl.appendChild(sellBtn);
+
+  row.appendChild(ctrl);
+  return row;
+}
+
+// ============================================================
+// Controlos de quantidade
+// ============================================================
+function buildQtyRow(
+  qty: number,
+  onChange: (v: number) => void,
+): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'shop-qty';
+
+  const minus = document.createElement('button');
+  minus.type = 'button';
+  minus.className = 'shop-qty__btn';
+  minus.textContent = '−';
+  minus.addEventListener('click', () => onChange(qty - 1));
+  wrap.appendChild(minus);
+
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.className = 'shop-qty__input';
+  input.value = String(qty);
+  input.min = '1';
+  input.addEventListener('change', () => {
+    const v = parseInt(input.value, 10);
+    onChange(Number.isFinite(v) ? v : 1);
+  });
+  wrap.appendChild(input);
+
+  const plus = document.createElement('button');
+  plus.type = 'button';
+  plus.className = 'shop-qty__btn';
+  plus.textContent = '+';
+  plus.addEventListener('click', () => onChange(qty + 1));
+  wrap.appendChild(plus);
+
+  return wrap;
+}
+
+function buildQuickRow(
+  current: number,
+  values: number[],
+  onChange: (v: number) => void,
+): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'shop-quick';
+
+  const labels = ['×1', '×5', '×10', 'Max'];
+  for (let i = 0; i < values.length; i++) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'shop-quick__btn' + (current === values[i] ? ' shop-quick__btn--active' : '');
+    b.textContent = labels[i] ?? ('×' + values[i]);
+    b.addEventListener('click', () => onChange(values[i] ?? 1));
+    wrap.appendChild(b);
+  }
+
+  return wrap;
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, Math.floor(v)));
+}

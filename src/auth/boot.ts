@@ -1,0 +1,36 @@
+// src/auth/boot.ts
+// Verifica sessao Supabase antes de deixar o jogo arrancar.
+// Sem Supabase configurado -> deixa passar (dev mode).
+
+import { isSupabaseConfigured } from './supabase';
+import { getSession } from './session';
+import { renderAuthGate } from '../ui/auth-gate';
+
+export interface AuthBootResult {
+  readonly ok: boolean;
+  readonly userId: string | null;
+}
+
+export async function requireAuth(): Promise<AuthBootResult> {
+  if (!isSupabaseConfigured()) {
+    console.warn('[Zerk Auth] Supabase nao configurado. Gate desativado.');
+    return { ok: true, userId: null };
+  }
+
+  // Pequeno delay para detectSessionInUrl processar o link do email
+  await new Promise((r) => setTimeout(r, 100));
+
+  const session = await getSession();
+  if (session?.user) {
+    return { ok: true, userId: session.user.id };
+  }
+
+  return new Promise<AuthBootResult>((resolve) => {
+    renderAuthGate({
+      onAuthenticated: (userId) => {
+        document.querySelectorAll('.auth-gate').forEach((el) => el.remove());
+        resolve({ ok: true, userId });
+      },
+    });
+  });
+}

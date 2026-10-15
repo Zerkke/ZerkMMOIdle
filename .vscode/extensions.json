@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    "vitest.explorer",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "usernamehw.errorlens",
+    "EditorConfig.EditorConfig",
+    "christian-kohler.path-intellisense",
+    "eamodio.gitlens",
+    "Gruntfuggly.todo-tree",
+    "PKief.material-icon-theme",
+    "oderwat.indent-rainbow",
+    "aaron-bond.better-comments"
+  ]
+}

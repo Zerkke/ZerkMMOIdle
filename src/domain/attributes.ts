@@ -1,0 +1,189 @@
+import { BALANCE } from '../data/balance.config';
+
+export interface Attributes {
+  readonly strength: number;
+  readonly agility: number;
+  readonly intelligence: number;
+  readonly vitality: number;
+}
+
+export const ZERO_ATTRIBUTES: Attributes = {
+  strength: 0, agility: 0, intelligence: 0, vitality: 0,
+};
+
+export function addAttributes(a: Attributes, b: Attributes): Attributes {
+  return {
+    strength: a.strength + b.strength,
+    agility: a.agility + b.agility,
+    intelligence: a.intelligence + b.intelligence,
+    vitality: a.vitality + b.vitality,
+  };
+}
+
+export interface PowerStats {
+  readonly attackPower: number;
+  readonly defensePower: number;
+}
+
+export const ZERO_POWER: PowerStats = { attackPower: 0, defensePower: 0 };
+
+export function addPower(a: PowerStats, b: PowerStats): PowerStats {
+  return {
+    attackPower: a.attackPower + b.attackPower,
+    defensePower: a.defensePower + b.defensePower,
+  };
+}
+
+export interface DerivedStats {
+  readonly maxHp: number;
+  readonly maxResource: number;
+  readonly attack: number;
+  readonly defense: number;
+  readonly ap: number;
+  readonly dp: number;
+  readonly criticalChance: number;
+  readonly lifesteal: number;
+  /** HP regenerado por segundo (vem de melhoramentos). */
+  readonly hpRegenPerSec: number;
+  /** Crit damage adicional (0..1). Vem de melhoramentos. */
+  readonly critDamage: number;
+  /** Reducao de dano 0..100 derivada de DP (curva assintotica). */
+  readonly damageReduction: number;
+  /** Reducao por tipo de dano (percentual 0..100). */
+  readonly resistances: Record<string, number>;
+}
+
+/**
+ * Opcoes avancadas para `deriveStats`.
+ * Permite que o servico injete bÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³nus externos (buffs, scaling de classe, rolls)
+ * sem duplicar o calculo central.
+ */
+export interface DeriveOptions {
+  /** Multiplicador de classe aplicado ao AP final. Default 1.0. */
+  readonly apScaling?: number | undefined;
+  /** Multiplicador de classe aplicado ao DP final. Default 1.0. */
+  readonly dpScaling?: number | undefined;
+  /** Bonus flat de AP (ex: elixir). Default 0. */
+  readonly buffAp?: number | undefined;
+  /** Bonus flat de DP (ex: elixir). Default 0. */
+  readonly buffDp?: number | undefined;
+  /** Bonus flat de attack efetivo (ex: buff attack-power). Default 0. */
+  readonly buffAttack?: number | undefined;
+  /** Bonus flat de crit chance (ex: buff). Default 0. */
+  readonly buffCritChance?: number | undefined;
+  /** HP maximo extra (ex: rolls max-hp). Default 0. */
+  readonly extraMaxHp?: number | undefined;
+  /** Crit chance extra (ex: rolls crit-chance). Default 0. */
+  readonly extraCritChance?: number | undefined;
+  /** Bonus de AP vindo de essencias. Default 0. */
+  readonly essenceAp?: number | undefined;
+  /** Bonus de DP vindo de essencias. Default 0. */
+  readonly essenceDp?: number | undefined;
+  /** HP maximo extra vindo de essencias. Default 0. */
+  readonly essenceMaxHp?: number | undefined;
+  /** Crit chance extra vindo de essencias. Default 0. */
+  readonly essenceCritChance?: number | undefined;
+  /** Lifesteal vindo de essencias. Default 0. */
+  readonly essenceLifesteal?: number | undefined;
+  /** HP por segundo vindo de melhoramentos. Default 0. */
+  readonly enhancementHpRegen?: number | undefined;
+  /** Crit damage (0..1) vindo de melhoramentos. Default 0. */
+  readonly enhancementCritDamage?: number | undefined;
+  /** Lifesteal (0..1) vindo de melhoramentos. Default 0. */
+  readonly enhancementLifesteal?: number | undefined;
+  /** Reducao de dano (0..1) vinda de melhoramentos. Default 0. */
+  readonly enhancementDamageReduction?: number | undefined;
+}
+
+/**
+ * Fonte UNICA de calculo de AP, DP, attack, defense, HP e critico.
+ *
+ * Ordem de aplicacao (documentada no Prompt de Fase 16):
+ * 1. Atributos base (ja somados externamente pelo service)
+ * 2. Power do equipamento (ja somado externamente)
+ * 3. AP/DP brutos = power + floor(attr * fator)
+ * 4. + buffs flat (ap-bonus, dp-bonus)
+ * 5. * scaling de classe (apScaling, dpScaling)
+ * 6. floor + clamp >= 0
+ * 7. attack/defense derivados de AP/DP
+ * 8. + buffAttack + extraAttack (rolls)
+ * 9. critChance capped em BALANCE.combat.maxCritChance
+ *
+ * Cada bÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¾Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¾ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â³nus e aplicado exatamente uma vez.
+ */
+/**
+ * Reducao de dano a partir do DP (0..100).
+ * Curva assintotica: DP / (DP + K), limitada ao teto.
+ */
+export function calculateDamageReduction(dp: number): number {
+  if (dp <= 0) return 0;
+  const k = BALANCE.character.damageReductionCurveK;
+  const cap = BALANCE.character.damageReductionMax;
+  const ratio = dp / (dp + k);
+  return Math.min(ratio, cap) * 100;
+}
+export function deriveStats(
+  attrs: Attributes,
+  power: PowerStats,
+  options: DeriveOptions = {},
+): DerivedStats {
+  const C = BALANCE.character;
+  const apScaling = options.apScaling ?? 1;
+  const dpScaling = options.dpScaling ?? 1;
+  const buffAp = options.buffAp ?? 0;
+  const buffDp = options.buffDp ?? 0;
+  const buffAttack = options.buffAttack ?? 0;
+  const buffCritChance = options.buffCritChance ?? 0;
+  const extraMaxHp = options.extraMaxHp ?? 0;
+  const extraCritChance = options.extraCritChance ?? 0;
+  const essenceAp = options.essenceAp ?? 0;
+  const essenceDp = options.essenceDp ?? 0;
+  const essenceMaxHp = options.essenceMaxHp ?? 0;
+  const essenceCritChance = options.essenceCritChance ?? 0;
+  const essenceLifesteal = options.essenceLifesteal ?? 0;
+  const enhancementHpRegen = options.enhancementHpRegen ?? 0;
+  const enhancementCritDamage = options.enhancementCritDamage ?? 0;
+  const enhancementLifesteal = options.enhancementLifesteal ?? 0;
+  const enhancementDamageReduction = options.enhancementDamageReduction ?? 0;
+
+  const rawAp = power.attackPower + Math.floor(attrs.strength * C.apFromStrength) + essenceAp;
+  const rawDp = power.defensePower + Math.floor(attrs.vitality * C.dpFromVitality) + essenceDp;
+  const ap = Math.max(0, Math.floor((rawAp + buffAp) * apScaling));
+  const dp = Math.max(0, Math.floor((rawDp + buffDp) * dpScaling));
+
+  const attack =
+    C.attackBase +
+    Math.floor(ap * C.attackFromAp) +
+    Math.floor(attrs.agility / C.attackFromAgilityDivisor) +
+    buffAttack;
+
+  const defense =
+    Math.floor(dp * C.defenseFromDp) +
+    Math.floor(attrs.strength / C.defenseFromStrengthDivisor);
+
+  const critRaw = attrs.agility * C.critFromAgility + extraCritChance + buffCritChance + essenceCritChance;
+  const criticalChance = Math.min(BALANCE.combat.maxCritChance, critRaw);
+
+  const drBase = calculateDamageReduction(dp);
+  const drTotalRaw = drBase + enhancementDamageReduction * 100;
+  const dr = Math.min(drTotalRaw, 90);
+  const resistances: Record<string, number> = {};
+  for (const [type, weight] of Object.entries(BALANCE.combat.resistanceTypes)) {
+    resistances[type] = +(dr * weight).toFixed(2);
+  }
+
+  return {
+    maxHp: C.baseHp + attrs.vitality * C.hpPerVitality + extraMaxHp + essenceMaxHp,
+    maxResource: C.baseResource + attrs.intelligence * C.resourcePerIntelligence,
+    attack,
+    defense,
+    ap,
+    dp,
+    criticalChance,
+    lifesteal: essenceLifesteal + enhancementLifesteal,
+    hpRegenPerSec: enhancementHpRegen,
+    critDamage: enhancementCritDamage,
+    damageReduction: dr,
+    resistances,
+  };
+}

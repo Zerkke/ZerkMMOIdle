@@ -1,0 +1,164 @@
+import { asItemId, asMonsterId } from '../domain/ids';
+import type { MonsterDefinition } from '../domain/content';
+
+export const DEMO_MONSTERS: readonly MonsterDefinition[] = [
+  /* ============ ZONA 1: VALE DAS CINZAS ============ */
+  {
+    id: asMonsterId('monster.slime-iron'),
+    name: 'Gosma de Ferro',
+    description: 'Gosma endurecida pelo ferro que absorveu.',
+    level: 1, maxHp: 40, attack: 4, defense: 1, attackIntervalMs: 1800,
+    expReward: 10, silverReward: 6,
+    isBoss: false, bossTier: 0,
+    loot: [{ itemId: asItemId('item.ore.iron'), chance: 0.7, minQuantity: 1, maxQuantity: 2 }],
+  },
+  {
+    id: asMonsterId('monster.forest-crawler'),
+    name: 'Rastejante da Floresta',
+    description: 'Predador pequeno, rapido e faminto.',
+    level: 2, maxHp: 70, attack: 7, defense: 2, attackIntervalMs: 1500,
+    expReward: 18, silverReward: 12,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.wood.pine'), chance: 0.6, minQuantity: 1, maxQuantity: 3 },
+      { itemId: asItemId('item.herb.mint'), chance: 0.35, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+  {
+    id: asMonsterId('monster.ash-wolf'),
+    name: 'Lobo de Cinzas',
+    description: 'Lobo que caca em matilha.',
+    level: 4, maxHp: 150, attack: 12, defense: 5, attackIntervalMs: 1300,
+    expReward: 38, silverReward: 26,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.potion.small'), chance: 0.2, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.hide.wolf'), chance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.ore.iron'), chance: 0.4, minQuantity: 2, maxQuantity: 4 },
+      { itemId: asItemId('item.essence.fortune.t1'), chance: 0.03, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+
+  /* ============ ZONA 2: CAVERNAS DE CRISTAL ============ */
+  {
+    id: asMonsterId('monster.stone-golem'),
+    name: 'Golem de Pedra',
+    description: 'Sentinela antiga que guarda as cavernas.',
+    level: 6, maxHp: 280, attack: 18, defense: 12, attackIntervalMs: 2000,
+    expReward: 65, silverReward: 45,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.ore.iron'), chance: 0.9, minQuantity: 2, maxQuantity: 5 },
+      { itemId: asItemId('item.ore.copper'), chance: 0.4, minQuantity: 1, maxQuantity: 3 },
+      { itemId: asItemId('item.essence.guard.t1'), chance: 0.05, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+  {
+    id: asMonsterId('monster.crystal-spider'),
+    name: 'Aranha de Cristal',
+    description: 'Predador rapido que tece teias cortantes.',
+    level: 7, maxHp: 220, attack: 24, defense: 8, attackIntervalMs: 1100,
+    expReward: 75, silverReward: 55,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.herb.lavender'), chance: 0.5, minQuantity: 1, maxQuantity: 2 },
+      { itemId: asItemId('item.potion.mana'), chance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.precision.t1'), chance: 0.04, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+  {
+    id: asMonsterId('monster.ancient-wyrm'),
+    name: 'Wyrm Ancestral',
+    description: 'Dragao menor, guardiao das profundezas.',
+    level: 10, maxHp: 500, attack: 32, defense: 18, attackIntervalMs: 1800,
+    expReward: 180, silverReward: 130,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.weapon.iron-greatsword'), chance: 0.08, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.fish.golden-koi'), chance: 0.2, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.ingot.iron'), chance: 0.4, minQuantity: 2, maxQuantity: 4 },
+      { itemId: asItemId('item.essence.precision.t1'), chance: 0.06, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.power.t1'), chance: 0.05, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+
+  /* ============ ZONA 3: CIDADELA EM RUINAS ============ */
+  {
+    id: asMonsterId('monster.ruin-skeleton'),
+    name: 'Esqueleto em Ruinas',
+    description: 'Restos animados dos antigos guardas.',
+    level: 11, maxHp: 320, attack: 28, defense: 14, attackIntervalMs: 1500,
+    expReward: 110, silverReward: 80,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.ingot.iron'), chance: 0.3, minQuantity: 1, maxQuantity: 2 },
+      { itemId: asItemId('item.potion.small'), chance: 0.25, minQuantity: 1, maxQuantity: 2 },
+      { itemId: asItemId('item.essence.guard.t1'), chance: 0.06, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+  {
+    id: asMonsterId('monster.cursed-knight'),
+    name: 'Cavaleiro Amaldicoado',
+    description: 'Espirito de um antigo campeao, ainda vestido de aco.',
+    level: 13, maxHp: 450, attack: 36, defense: 22, attackIntervalMs: 1600,
+    expReward: 160, silverReward: 120,
+    isBoss: false, bossTier: 0,
+    loot: [
+      { itemId: asItemId('item.elixir.crit'), chance: 0.15, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.ingot.iron'), chance: 0.5, minQuantity: 2, maxQuantity: 3 },
+      { itemId: asItemId('item.essence.power.t2'), chance: 0.04, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.blood.t1'), chance: 0.05, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+
+  /* ============ BOSSES ============ */
+  {
+    id: asMonsterId('monster.boss.ash-wolf-alpha'),
+    name: 'Lobo Alfa das Cinzas',
+    description: 'Chefe da matilha, muito mais forte que os lobos comuns.',
+    level: 5, maxHp: 400, attack: 22, defense: 10, attackIntervalMs: 1200,
+    expReward: 250, silverReward: 200,
+    isBoss: true, bossTier: 1,
+    loot: [
+      { itemId: asItemId('item.weapon.iron-greatsword'), chance: 0.5, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.hide.wolf'), chance: 1.0, minQuantity: 2, maxQuantity: 4 },
+      { itemId: asItemId('item.potion.small'), chance: 1.0, minQuantity: 3, maxQuantity: 5 },
+      { itemId: asItemId('item.essence.power.t1'), chance: 1.0, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.blood.t1'), chance: 0.5, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+  {
+    id: asMonsterId('monster.boss.crystal-queen'),
+    name: 'Rainha de Cristal',
+    description: 'Governante das Cavernas, envolta em luz prismatica.',
+    level: 10, maxHp: 900, attack: 42, defense: 22, attackIntervalMs: 1400,
+    expReward: 600, silverReward: 450,
+    isBoss: true, bossTier: 2,
+    loot: [
+      { itemId: asItemId('item.necklace.copper'), chance: 1.0, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.elixir.crit'), chance: 0.6, minQuantity: 2, maxQuantity: 3 },
+      { itemId: asItemId('item.fish.golden-koi'), chance: 1.0, minQuantity: 2, maxQuantity: 4 },
+      { itemId: asItemId('item.essence.power.t2'), chance: 1.0, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.precision.t2'), chance: 0.6, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.vitality.t1'), chance: 0.5, minQuantity: 1, maxQuantity: 2 },
+    ],
+  },
+  {
+    id: asMonsterId('monster.boss.citadel-warlord'),
+    name: 'Senhor da Guerra da Cidadela',
+    description: 'Comandante supremo das ruinas, ainda empunhando a espada ancestral.',
+    level: 15, maxHp: 1800, attack: 58, defense: 30, attackIntervalMs: 1500,
+    expReward: 1500, silverReward: 1200,
+    isBoss: true, bossTier: 3,
+    loot: [
+      { itemId: asItemId('item.weapon.iron-greatsword'), chance: 1.0, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.armor.iron-helm'), chance: 1.0, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.elixir.crit'), chance: 1.0, minQuantity: 3, maxQuantity: 5 },
+      { itemId: asItemId('item.ingot.iron'), chance: 1.0, minQuantity: 8, maxQuantity: 12 },
+      { itemId: asItemId('item.essence.power.t3'), chance: 1.0, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.blood.t3'), chance: 0.8, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.guard.t2'), chance: 0.7, minQuantity: 1, maxQuantity: 1 },
+      { itemId: asItemId('item.essence.fortune.t2'), chance: 0.5, minQuantity: 1, maxQuantity: 1 },
+    ],
+  },
+];

@@ -1,0 +1,229 @@
+import type { GameServices } from '../services/game-services';
+import type { CombatEvent } from '../domain/combat';
+import { asZoneId } from '../domain/ids';
+import { computeZoneScaling } from '../domain/zones';
+import { renderPanelHeader, renderSectionTitle } from './panel-header';
+import { createButton } from './button';
+import { createIcon } from './icons';
+
+export function renderCombatPanel(services: GameServices): HTMLElement {
+  const root = document.createElement('div');
+  root.className = 'panel-content';
+
+  root.appendChild(renderPanelHeader({
+    icon: 'swords',
+    title: 'Combate',
+    subtitle: 'Enfrenta monstros e ganha experiencia',
+  }));
+
+  const session = services.getCombatSession();
+
+  const derived = services.getDerivedStats();
+  const hp = services.getCurrentPlayerHp();
+  const resource = services.getCurrentPlayerResource();
+
+  root.appendChild(barBlock('Vida', hp, derived.maxHp, 'hp'));
+  root.appendChild(barBlock('Recurso', resource, derived.maxResource, 'resource'));
+
+  if (!session) {
+    root.appendChild(zoneList(services));
+    return root;
+  }
+
+  root.appendChild(renderSectionTitle('Em combate: ' + session.monsterName));
+
+  root.appendChild(barBlock('HP do monstro', session.monsterHp, session.monsterMaxHp, 'enemy'));
+
+  const actions = document.createElement('div');
+  actions.className = 'action-row';
+
+  actions.appendChild(createButton({
+    label: 'Parar',
+    icon: 'pause',
+    variant: 'danger',
+    onClick: () => services.stopCombat(),
+  }));
+
+  const cfg = services.getCombatConfig();
+  actions.appendChild(createButton({
+    label: cfg.autoMode ? 'Auto ON' : 'Auto OFF',
+    icon: cfg.autoMode ? 'check' : 'close',
+    variant: cfg.autoMode ? 'primary' : 'default',
+    onClick: () => services.setCombatConfig({ autoMode: !cfg.autoMode }),
+  }));
+
+  actions.appendChild(createButton({
+    label: cfg.useSkills ? 'Skills ON' : 'Skills OFF',
+    icon: 'sparkles',
+    variant: cfg.useSkills ? 'primary' : 'default',
+    onClick: () => services.setCombatConfig({ useSkills: !cfg.useSkills }),
+  }));
+
+  actions.appendChild(createButton({
+    label: 'Estrategia: ' + cfg.strategy,
+    icon: 'shield',
+    onClick: () => {
+      const order: Array<'aggressive' | 'balanced' | 'defensive'> = ['aggressive', 'balanced', 'defensive'];
+      const idx = order.indexOf(cfg.strategy);
+      const next = order[(idx + 1) % order.length] ?? 'aggressive';
+      services.setCombatConfig({ strategy: next });
+    },
+  }));
+
+  root.appendChild(actions);
+
+  root.appendChild(renderSectionTitle('Sessao'));
+
+  const stats = document.createElement('div');
+  stats.className = 'info-grid';
+  stats.appendChild(row('Abates', String(session.kills)));
+  stats.appendChild(row('XP ganho', '+' + session.totalXp));
+  stats.appendChild(row('Prata ganha', '+' + session.totalSilver));
+  root.appendChild(stats);
+
+  if (session.loot.size > 0) {
+    root.appendChild(renderSectionTitle('Loot da sessao'));
+    const lootGrid = document.createElement('div');
+    lootGrid.className = 'info-grid';
+    for (const [itemId, qty] of session.loot) {
+      const def = services.registry.getItem(itemId);
+      lootGrid.appendChild(row(def?.name ?? itemId, 'x' + qty));
+    }
+    root.appendChild(lootGrid);
+  }
+
+  root.appendChild(renderSectionTitle('Registo'));
+
+  const log = document.createElement('div');
+  log.className = 'combat-log';
+  const recent = [...session.log].reverse();
+  for (const event of recent) log.appendChild(logEntry(event));
+  root.appendChild(log);
+
+  return root;
+}
+
+function zoneList(services: GameServices): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.appendChild(renderSectionTitle('Zonas disponiveis'));
+
+  const char = services.getCharacter();
+  const list = document.createElement('div');
+  list.className = 'zone-list';
+
+  for (const zone of services.registry.zones.values()) {
+    const card = document.createElement('div');
+    card.className = 'zone-card';
+
+    const name = document.createElement('h3');
+    name.textContent = zone.name;
+    card.appendChild(name);
+
+    const desc = document.createElement('p');
+    desc.textContent = zone.description;
+    card.appendChild(desc);
+
+    const level = document.createElement('p');
+    level.className = 'muted';
+    level.textContent = 'Nivel minimo: ' + zone.minLevel;
+    card.appendChild(level);
+
+    // Requisitos AP/DP + escala (Bloco 8)
+    const derived = services.getDerivedStats();
+    const scaling = computeZoneScaling(derived.ap, derived.dp, zone);
+    if (scaling.requiredAp > 0 || scaling.requiredDp > 0) {
+      const req = document.createElement('p');
+      req.className = 'muted';
+      const apCor = derived.ap >= scaling.requiredAp ? 'var(--ok, #6c6)' : 'var(--danger, #d66)';
+      const dpCor = derived.dp >= scaling.requiredDp ? 'var(--ok, #6c6)' : 'var(--danger, #d66)';
+      req.innerHTML =
+        'Requer <span style="color:' + apCor + '">AP ' + derived.ap + '/' + scaling.requiredAp + '</span>' +
+        ' e <span style="color:' + dpCor + '">DP ' + derived.dp + '/' + scaling.requiredDp + '</span>';
+      card.appendChild(req);
+
+      const status = document.createElement('p');
+      status.className = 'muted';
+      status.textContent = scaling.description;
+      card.appendChild(status);
+    }
+
+    const canEnter = char.level >= zone.minLevel;
+    const btn = createButton({
+      label: canEnter ? 'Entrar' : 'Requer nivel ' + zone.minLevel,
+      icon: canEnter ? 'play' : 'alert',
+      variant: canEnter ? 'primary' : 'default',
+      disabled: !canEnter,
+      onClick: () => { services.startCombat(asZoneId(zone.id as string)); },
+    });
+    card.appendChild(btn);
+
+    list.appendChild(card);
+  }
+
+  wrap.appendChild(list);
+  return wrap;
+}
+
+function barBlock(label: string, current: number, max: number, kind: 'hp' | 'resource' | 'enemy'): HTMLElement {
+  const block = document.createElement('div');
+  block.className = 'bar bar--' + kind;
+
+  const head = document.createElement('div');
+  head.className = 'bar__head';
+  const l = document.createElement('span');
+  l.textContent = label;
+  const v = document.createElement('span');
+  v.className = 'bar__value';
+  v.textContent = current + ' / ' + max;
+  head.appendChild(l);
+  head.appendChild(v);
+
+  const track = document.createElement('div');
+  track.className = 'bar__track';
+  const fill = document.createElement('div');
+  fill.className = 'bar__fill';
+  const pct = max > 0 ? Math.max(0, Math.min(100, (current / max) * 100)) : 0;
+  fill.style.width = pct + '%';
+  track.appendChild(fill);
+
+  block.appendChild(head);
+  block.appendChild(track);
+  return block;
+}
+
+function row(label: string, value: string): HTMLElement {
+  const r = document.createElement('div');
+  r.className = 'info-row';
+  const l = document.createElement('span');
+  l.className = 'info-row__label';
+  l.textContent = label;
+  const v = document.createElement('span');
+  v.className = 'info-row__value';
+  v.textContent = value;
+  r.appendChild(l);
+  r.appendChild(v);
+  return r;
+}
+
+function logEntry(event: CombatEvent): HTMLElement {
+  const el = document.createElement('div');
+  el.className = 'combat-log__entry combat-log__entry--' + event.kind;
+  switch (event.kind) {
+    case 'player-basic':
+      el.textContent = 'Atacas: ' + event.damage + (event.crit ? ' (CRITICO)' : '');
+      break;
+    case 'player-skill':
+      el.textContent = event.heal > 0
+        ? 'Skill cura: +' + event.heal + ' HP'
+        : 'Skill: ' + event.damage + (event.crit ? ' (CRITICO)' : '');
+      break;
+    case 'monster-basic':
+      el.textContent = 'Inimigo ataca: ' + event.damage;
+      break;
+    case 'victory': el.textContent = 'VITORIA'; break;
+    case 'defeat': el.textContent = 'DERROTA'; break;
+  }
+  return el;
+}
+
+void createIcon;

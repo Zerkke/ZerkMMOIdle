@@ -1,0 +1,63 @@
+// src/domain/zones.ts
+// Funcao pura de gate de zona por AP/DP. Testavel isoladamente.
+
+import type { ZoneDefinition } from './content';
+
+export type ZoneAccessStatus = 'ok' | 'bonus' | 'blocked';
+
+export interface ZoneAccessResult {
+  readonly status: ZoneAccessStatus;
+  readonly reason: string | null;
+  readonly requiredAp: number;
+  readonly requiredDp: number;
+  readonly playerAp: number;
+  readonly playerDp: number;
+}
+
+type ZoneReq = Pick<ZoneDefinition, 'requiredAp' | 'requiredDp'>;
+
+/**
+ * Avalia se o jogador pode entrar numa zona com base em AP/DP.
+ *
+ * Regras:
+ * - Zona sem requisitos -> sempre OK.
+ * - AP < req OU DP < req -> blocked.
+ * - AP >= req E DP >= req -> ok.
+ * - AP >= req*1.5 E DP >= req*1.5 -> bonus (recompensas melhores).
+ */
+export function checkZoneAccess(
+  playerAp: number,
+  playerDp: number,
+  zone: ZoneReq,
+): ZoneAccessResult {
+  const reqAp = zone.requiredAp ?? 0;
+  const reqDp = zone.requiredDp ?? 0;
+
+  if (reqAp === 0 && reqDp === 0) {
+    return { status: 'ok', reason: null, requiredAp: 0, requiredDp: 0, playerAp, playerDp };
+  }
+
+  if (playerAp < reqAp || playerDp < reqDp) {
+    const faltas: string[] = [];
+    if (playerAp < reqAp) faltas.push('AP ' + playerAp + '/' + reqAp);
+    if (playerDp < reqDp) faltas.push('DP ' + playerDp + '/' + reqDp);
+    return {
+      status: 'blocked',
+      reason: 'Requer ' + faltas.join(' e ') + '.',
+      requiredAp: reqAp,
+      requiredDp: reqDp,
+      playerAp,
+      playerDp,
+    };
+  }
+
+  const bonus = playerAp >= reqAp * 1.5 && playerDp >= reqDp * 1.5;
+  return {
+    status: bonus ? 'bonus' : 'ok',
+    reason: null,
+    requiredAp: reqAp,
+    requiredDp: reqDp,
+    playerAp,
+    playerDp,
+  };
+}

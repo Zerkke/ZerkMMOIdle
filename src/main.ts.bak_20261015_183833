@@ -1,0 +1,85 @@
+import { TypedEventBus } from './core/event-bus';
+import type { AppEventMap } from './core/app-events';
+import { createDemoRegistry } from './data/registry';
+import { SaveManager, DEFAULT_SLOT } from './persistence/save-manager';
+import { IndexedDbPersistence } from './persistence/indexeddb-adapter';
+import { GameServices } from './services/game-services';
+import { mountAppShell } from './ui/app-shell';
+import { toast } from './ui/toast';
+import { requireAuth } from './auth/boot';
+import './style.css';
+
+function requireElement(id: string): HTMLElement {
+  const el = document.getElementById(id);
+  if (!el) throw new Error('Elemento obrigatorio nao encontrado: #' + id);
+  return el;
+}
+
+async function bootstrap(): Promise<void> {
+  // ============ AUTH GATE ============
+  const auth = await requireAuth();
+  if (!auth.ok) return;
+
+  // ============ JOGO ============
+  const registry = createDemoRegistry();
+  const persistence = new IndexedDbPersistence();
+  const saveManager = new SaveManager(persistence);
+
+  let services: GameServices;
+  let lastSaveAt = 0;
+  try {
+    const existingSave = await saveManager.load(DEFAULT_SLOT);
+    if (existingSave) {
+      lastSaveAt = existingSave.savedAt;
+      services = new GameServices(registry, existingSave);
+    } else {
+      services = GameServices.createInitial(registry);
+      await saveManager.save(services.toSnapshot(Date.now()), DEFAULT_SLOT);
+      toast('Novo jogo criado.', 'info');
+    }
+  } catch (error) {
+    console.error('[Zerk] Falha ao carregar save, a iniciar novo.', error);
+    toast('Save corrompido. A iniciar novo jogo.', 'warn');
+    services = GameServices.createInitial(registry);
+    try { await saveManager.save(services.toSnapshot(Date.now()), DEFAULT_SLOT); } catch (e) { console.error(e); }
+  }
+
+  if (lastSaveAt > 0) {
+    const report = services.runIdleCatchup(lastSaveAt, Date.now());
+    if (report) {
+      const dur = Math.floor(report.simulatedMs / 60000);
+      toast('Simulaste ' + dur + ' min offline. Ve o separador Idle.', 'info');
+    }
+  }
+
+  const eventBus = new TypedEventBus<AppEventMap>();
+  eventBus.emit('content:loaded', {
+    items: registry.items.size, classes: registry.classes.size,
+    monsters: registry.monsters.size, zones: registry.zones.size,
+  });
+
+  const hosts = {
+    tabsHost: requireElement('tab-nav'),
+    panelHost: requireElement('side-panel-content'),
+    resourceHost: requireElement('resource-bar-host'),
+    controlsHost: requireElement('save-controls-host'),
+    buffHost: requireElement('buff-bar-host'),
+    tutorialHost: requireElement('tutorial-overlay-host'),
+    bannerHost: requireElement('activity-banner-host'),
+  };
+
+  mountAppShell(hosts, {
+    registry, services, saveManager,
+    onReload: async () => { window.location.reload(); },
+    onTabChange: (tab) => eventBus.emit('ui:tab-changed', { tab }),
+  });
+
+  eventBus.emit('game:ready', { timestamp: Date.now() });
+  console.log('[Zerk] Auth OK. Jogo pronto. UserId: ' + (auth.userId ?? 'anon'));
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { void bootstrap(); });
+} else {
+  void bootstrap();
+}
