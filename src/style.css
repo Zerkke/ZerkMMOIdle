@@ -6770,3 +6770,281 @@ header .version, .app-version, header small {
 .auth-gate__verify-text { text-align: center; font-size: 13px; color: rgba(230,225,211,0.85); line-height: 1.5; }
 .auth-gate__verify-text b { color: #e8c977; }
 .auth-gate__verify-hint { text-align: center; font-size: 11px; color: rgba(230,225,211,0.5); font-style: italic; padding: 8px; }
+
+/* ===== MOBILE RESPONSIVE v1 ===== */
+html, body {
+  max-width: 100vw !important;
+  overflow-x: hidden !important;
+}
+
+* {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  /* Top bar */
+  header, .app-header, .topbar {
+    padding: 8px 10px !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  header h1, .app-title, .logo {
+    font-size: 15px !important;
+    letter-spacing: 1.5px !important;
+  }
+  header .version, .app-version {
+    font-size: 8px !important;
+    padding: 2px 6px !important;
+  }
+
+  /* Resource pills */
+  .resource-bar {
+    gap: 4px !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    justify-content: space-between !important;
+  }
+  .resource-bar__item {
+    min-width: 0 !important;
+    flex: 1 !important;
+    padding: 4px 8px !important;
+  }
+  .resource-bar__label { font-size: 8px !important; letter-spacing: 1px !important; }
+  .resource-bar__value { font-size: 11px !important; }
+
+  /* Tabs horizontais com scroll */
+  .tabs, nav.tabs, [role="tablist"], .tab-bar {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    white-space: nowrap !important;
+    padding: 4px 6px 0 !important;
+    gap: 2px !important;
+    display: flex !important;
+    flex-wrap: nowrap !important;
+  }
+  .tabs::-webkit-scrollbar, nav.tabs::-webkit-scrollbar, .tab-bar::-webkit-scrollbar { display: none; }
+
+  .tab-button, [role="tab"] {
+    padding: 8px 10px !important;
+    font-size: 9px !important;
+    letter-spacing: 0.5px !important;
+    flex-shrink: 0 !important;
+    min-height: 36px !important;
+  }
+
+  /* Activity banner */
+  .activity-banner {
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 10px !important;
+    margin: 8px 8px 0 !important;
+  }
+  .activity-banner__right { display: flex !important; flex-direction: column !important; gap: 6px !important; }
+  .activity-banner__bar-row { min-width: 0 !important; width: 100% !important; }
+  .activity-banner__title { font-size: 13px !important; }
+  .activity-banner__sub { font-size: 10px !important; }
+  .activity-banner__icon { width: 36px !important; height: 36px !important; }
+
+  /* Painéis (panel-content) */
+  .panel-content {
+    padding: 12px !important;
+    margin: 8px !important;
+    border-radius: 8px !important;
+  }
+  .panel-content h2 { font-size: 16px !important; letter-spacing: 2px !important; padding-bottom: 6px !important; margin-bottom: 10px !important; }
+  .panel-content .section-title { font-size: 11px !important; letter-spacing: 3px !important; padding: 8px 0 4px !important; }
+
+  /* Panel header */
+  .panel-header {
+    padding: 10px !important;
+    gap: 10px !important;
+    margin-bottom: 10px !important;
+  }
+  .panel-header h1, .panel-header__title { font-size: 14px !important; letter-spacing: 1.5px !important; }
+  .panel-header p, .panel-header__subtitle { font-size: 10px !important; }
+
+  /* Todos os layouts multi-coluna → 1 coluna */
+  .sheet__body,
+  .ficha-body,
+  .eq-body,
+  .inv-body,
+  .combat-body,
+  .idle-body,
+  .life-body,
+  .enh-body,
+  .craft-filters + .craft-grid,
+  .char-body,
+  .quest-grid,
+  .craft-grid,
+  .shop-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px !important;
+  }
+
+  /* Character sheet - retrato */
+  .sheet__col--slots,
+  .sheet__col--stats,
+  .sheet__col--inv,
+  .ficha-col--portrait,
+  .ficha-col--center,
+  .ficha-col--right {
+    grid-column: 1 / -1 !important;
+  }
+  .sheet__avatar, .ficha-portrait { max-height: 200px !important; }
+
+  /* Equipamento - grelha de slots */
+  .eq-gear {
+    grid-template-columns: repeat(3, 1fr) !important;
+    grid-template-areas:
+      "helmet helmet necklace"
+      "weapon armor offhand"
+      "gloves boots ring1"
+      "ring2 earring1 earring2"
+      "tool . ." !important;
+    gap: 6px !important;
+    min-height: auto !important;
+  }
+  .eq-silhouette { grid-area: armor !important; min-height: 80px !important; }
+  .eq-silhouette__inner { min-height: 60px !important; }
+  .eq-cell__item, .eq-cell__empty { width: 52px !important; height: 52px !important; }
+  .eq-cell__label { font-size: 8px !important; }
+  .eq-ess-chip { width: 16px !important; height: 16px !important; font-size: 8px !important; }
+
+  /* Inventário grid */
+  .inv-grid, .sheet__inv-grid, .item-grid, .enh-grid {
+    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  /* Info rows */
+  .info-row, .char-info-line, .ficha-info-line, .inv-detail__line, .eq-bonus-line {
+    font-size: 11px !important;
+    padding: 6px 0 !important;
+  }
+  .info-row__value, .char-info-line__value, .ficha-info-line__value { font-size: 11px !important; }
+
+  /* Info grid global */
+  .info-grid {
+    grid-template-columns: 1fr !important;
+    padding: 10px !important;
+    gap: 0 !important;
+  }
+
+  /* Power cards (AP/DP) */
+  .char-power-row, .ficha-power-row, .eq-power {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  .char-power-card__value, .ficha-power-card__value { font-size: 22px !important; }
+  .char-power-card__icon, .ficha-power-card__icon svg { width: 22px !important; height: 22px !important; }
+
+  /* Botões touch-friendly */
+  button, .action-button, .inv-action, .quest-btn, .enh-action {
+    min-height: 42px !important;
+    font-size: 11px !important;
+    padding: 10px 12px !important;
+  }
+
+  /* Modal (loja) */
+  .shop-modal__box {
+    width: 94vw !important;
+    padding: 18px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+
+  /* Ficha / Character / Combate */
+  .combat-arena {
+    grid-template-columns: 1fr !important;
+    min-height: auto !important;
+    padding: 14px 10px !important;
+  }
+  .combat-arena__vs { display: none !important; }
+  .combat-arena__sprite { width: 72px !important; height: 72px !important; }
+
+  /* Log combate */
+  .combat-log { font-size: 11px !important; max-height: 180px !important; }
+
+  /* Idle */
+  .idle-kinds { grid-template-columns: 1fr !important; }
+  .idle-report__grid { grid-template-columns: 1fr 1fr !important; }
+
+  /* Persistence controls (Guardar/Carregar/etc) */
+  .persistence-controls, .panel-content > div:last-child {
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+  }
+  .persistence-controls button { font-size: 10px !important; padding: 6px 10px !important; }
+
+  /* Tutorial overlay — não cobrir conteúdo */
+  .tutorial-overlay, .tutorial-card {
+    position: relative !important;
+    margin: 8px !important;
+    max-width: calc(100vw - 16px) !important;
+    left: auto !important;
+    right: auto !important;
+    top: auto !important;
+    transform: none !important;
+  }
+
+  /* Numeração grande (preservada) */
+  .char-attr-card__value, .ficha-attr-card__value { font-size: 18px !important; }
+
+  /* Layout dos paineis laterais */
+  .idle-left, .idle-right,
+  .enh-left, .enh-right,
+  .inv-grid-wrap, .inv-detail,
+  .eq-gear-wrap, .eq-side {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .inv-detail, .eq-side { max-height: none !important; }
+}
+
+@media (max-width: 500px) {
+  header h1, .app-title, .logo { font-size: 13px !important; letter-spacing: 1px !important; }
+  .resource-bar__item { padding: 3px 6px !important; }
+  .resource-bar__label { font-size: 7px !important; }
+  .resource-bar__value { font-size: 10px !important; }
+
+  .tab-button, [role="tab"] { padding: 6px 8px !important; font-size: 8px !important; }
+
+  .panel-content { padding: 10px !important; margin: 6px !important; }
+  .panel-content h2 { font-size: 14px !important; }
+
+  .eq-gear {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 4px !important;
+  }
+  .eq-cell__item, .eq-cell__empty { width: 46px !important; height: 46px !important; }
+  .eq-cell__item svg, .eq-cell__empty svg { width: 20px !important; height: 20px !important; }
+
+  .inv-grid, .sheet__inv-grid, .item-grid, .enh-grid {
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)) !important;
+    gap: 4px !important;
+  }
+
+  .char-attr-grid, .ficha-attr-grid { gap: 5px !important; }
+  .char-attr-card, .ficha-attr-card { padding: 8px 5px !important; }
+  .char-attr-card__value, .ficha-attr-card__value { font-size: 16px !important; }
+  .char-attr-card__label, .ficha-attr-card__label { font-size: 9px !important; }
+
+  button, .action-button { font-size: 10px !important; padding: 8px 10px !important; min-height: 40px !important; }
+
+  .shop-modal__box { width: 96vw !important; padding: 14px !important; }
+}
+
+/* Landscape no telemóvel */
+@media (max-height: 500px) and (orientation: landscape) {
+  .activity-banner { padding: 6px 8px !important; }
+  .panel-content { padding: 8px !important; }
+}
