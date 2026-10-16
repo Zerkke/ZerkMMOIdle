@@ -1,4 +1,4 @@
-import type { SaveLatest, SaveV12, SaveV13, SaveV14, SaveV15, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot, SpecializationStateSnapshot, DungeonRunSnapshot, DungeonBestResultSnapshot } from './save-schema';
+import type { SaveLatest, SaveV12, SaveV13, SaveV14, SaveV15, SaveV16, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot, SpecializationStateSnapshot, DungeonRunSnapshot, DungeonBestResultSnapshot, ArenaStateSnapshot, ArenaHistorySnapshot } from './save-schema';
 import { SAVE_SCHEMA_VERSION } from './save-schema';
 
 export class SaveParseError extends Error {
@@ -41,6 +41,7 @@ export function migrateToLatest(input: unknown): SaveLatest {
       case 12: current = migrateV12toV13(current); currentVersion = 13; break;
       case 13: current = migrateV13toV14(current); currentVersion = 14; break;
       case 14: current = migrateV14toV15(current); currentVersion = 15; break;
+      case 15: current = migrateV15toV16(current); currentVersion = 16; break;
       default: throw new SaveParseError('Sem migracao da versao ' + currentVersion + '.');
     }
   }
@@ -561,6 +562,76 @@ function migrateV14toV15(v14: unknown): SaveV15 {
     dungeons: { active, results },
   };
 }
+function migrateV15toV16(v15: unknown): SaveV16 {
+  if (!isRecord(v15)) throw new SaveParseError('V15 invalido.');
+  if (!isRecord(v15['character']) || !isRecord(v15['equipment']) || !isRecord(v15['combatConfig'])) {
+    throw new SaveParseError('V15 incompleto.');
+  }
+
+  let arena: ArenaStateSnapshot = {
+    rating: 1000, peakRating: 1000, fightsToday: 0, lastResetAt: 0,
+    totalWins: 0, totalLosses: 0, history: [],
+  };
+  const aRaw = v15['arena'];
+  if (isRecord(aRaw)) {
+    const num = (v: unknown, def: number, min = 0): number => {
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < min) return def;
+      return Math.floor(v);
+    };
+    const history: ArenaHistorySnapshot[] = [];
+    const hRaw = aRaw['history'];
+    if (Array.isArray(hRaw)) {
+      for (const e of hRaw) {
+        if (!isRecord(e)) continue;
+        history.push({
+          foughtAt: num(e['foughtAt'], 0),
+          opponentId: typeof e['opponentId'] === 'string' ? e['opponentId'] : '',
+          opponentName: typeof e['opponentName'] === 'string' ? e['opponentName'] : '',
+          won: e['won'] === true,
+          ratingBefore: num(e['ratingBefore'], 1000),
+          ratingAfter: num(e['ratingAfter'], 1000),
+          silverGained: num(e['silverGained'], 0),
+          xpGained: num(e['xpGained'], 0),
+        });
+      }
+    }
+    arena = {
+      rating: num(aRaw['rating'], 1000),
+      peakRating: num(aRaw['peakRating'], 1000),
+      fightsToday: num(aRaw['fightsToday'], 0),
+      lastResetAt: num(aRaw['lastResetAt'], 0),
+      totalWins: num(aRaw['totalWins'], 0),
+      totalLosses: num(aRaw['totalLosses'], 0),
+      history,
+    };
+  }
+
+  const v15c = v15 as unknown as SaveV15;
+  return {
+    schemaVersion: 16,
+    savedAt: v15c.savedAt,
+    character: v15c.character,
+    inventory: v15c.inventory,
+    warehouse: v15c.warehouse,
+    equipment: v15c.equipment,
+    combat: v15c.combat,
+    combatConfig: v15c.combatConfig,
+    enhancementHistory: v15c.enhancementHistory,
+    professionStates: v15c.professionStates,
+    activity: v15c.activity,
+    buffs: v15c.buffs,
+    farm: v15c.farm,
+    transactions: v15c.transactions,
+    idleSetup: v15c.idleSetup,
+    lastIdleReport: v15c.lastIdleReport,
+    tutorial: v15c.tutorial,
+    quests: v15c.quests,
+    talents: v15c.talents,
+    specialization: v15c.specialization,
+    dungeons: v15c.dungeons,
+    arena,
+  };
+}
 function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value)) throw new SaveParseError('Save final invalido.');
   if (value['schemaVersion'] !== SAVE_SCHEMA_VERSION) throw new SaveParseError('Versao inesperada.');
@@ -573,5 +644,6 @@ function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value['talents'])) throw new SaveParseError('Sem talents.');
   if (!isRecord(value['specialization'])) throw new SaveParseError('Sem specialization.');
   if (!isRecord(value['dungeons'])) throw new SaveParseError('Sem dungeons.');
+  if (!isRecord(value['arena'])) throw new SaveParseError('Sem arena.');
   if (typeof value['savedAt'] !== 'number') throw new SaveParseError('Sem savedAt.');
 }

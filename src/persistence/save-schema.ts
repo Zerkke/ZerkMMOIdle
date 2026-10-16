@@ -1,4 +1,4 @@
-export const SAVE_SCHEMA_VERSION = 15;
+export const SAVE_SCHEMA_VERSION = 16;
 
 export interface CharacterSnapshotV1 {
   readonly id: string;
@@ -285,11 +285,57 @@ export interface SaveV15 {
   readonly dungeons: DungeonsStateSnapshot;
 }
 
-export type SaveLatest = SaveV15;
+export interface ArenaHistorySnapshot {
+  readonly foughtAt: number;
+  readonly opponentId: string;
+  readonly opponentName: string;
+  readonly won: boolean;
+  readonly ratingBefore: number;
+  readonly ratingAfter: number;
+  readonly silverGained: number;
+  readonly xpGained: number;
+}
 
-export function emptySave(savedAt: number): SaveV15 {
+export interface ArenaStateSnapshot {
+  readonly rating: number;
+  readonly peakRating: number;
+  readonly fightsToday: number;
+  readonly lastResetAt: number;
+  readonly totalWins: number;
+  readonly totalLosses: number;
+  readonly history: readonly ArenaHistorySnapshot[];
+}
+
+export interface SaveV16 {
+  readonly schemaVersion: 16;
+  readonly savedAt: number;
+  readonly character: CharacterSnapshotV1;
+  readonly inventory: InventorySnapshot;
+  readonly warehouse: InventorySnapshot;
+  readonly equipment: EquipmentSnapshot;
+  readonly combat: CombatSnapshot | null;
+  readonly combatConfig: CombatConfigSnapshot;
+  readonly enhancementHistory: readonly EnhancementHistorySnapshot[];
+  readonly professionStates: Readonly<Record<string, ProfessionStateSnapshot>>;
+  readonly activity: ActivitySnapshot | null;
+  readonly buffs: readonly ActiveBuffSnapshot[];
+  readonly farm: readonly FarmPlotSnapshot[];
+  readonly transactions: readonly TransactionSnapshot[];
+  readonly idleSetup: IdleConfigSnapshot | null;
+  readonly lastIdleReport: IdleReportSnapshot | null;
+  readonly tutorial: TutorialStateSnapshot | null;
+  readonly quests: readonly QuestStateSnapshot[];
+  readonly talents: TalentStateSnapshot;
+  readonly specialization: SpecializationStateSnapshot;
+  readonly dungeons: DungeonsStateSnapshot;
+  readonly arena: ArenaStateSnapshot;
+}
+
+export type SaveLatest = SaveV16;
+
+export function emptySave(savedAt: number): SaveV16 {
   return {
-    schemaVersion: 15,
+    schemaVersion: 16,
     savedAt,
     character: {
       id: 'local', name: 'Aventureiro', classId: 'class.ferrumancer',
@@ -314,5 +360,14 @@ export function emptySave(savedAt: number): SaveV15 {
     talents: { ranks: {}, respecCount: 0 },
     specialization: { active: null, changeCount: 0, lastChangeAt: 0 },
     dungeons: { active: null, results: {} },
+    arena: {
+      rating: 1000,
+      peakRating: 1000,
+      fightsToday: 0,
+      lastResetAt: 0,
+      totalWins: 0,
+      totalLosses: 0,
+      history: [],
+    },
   };
 }

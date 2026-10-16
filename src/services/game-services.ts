@@ -68,6 +68,11 @@ import { SpecializationsService } from './specializations-service';
 import { SPECIALIZATION_TREE } from '../data/specializations.data';
 import { DungeonsService } from './dungeons-service';
 import { DUNGEONS } from '../data/dungeons.data';
+import { ArenaService } from './arena-service';
+import { ARENA_OPPONENTS } from '../data/arena.data';
+import { DEFAULT_ARENA_CONFIG } from '../domain/arena/types';
+import type { ArenaState } from '../domain/arena/types';
+import type { ArenaFightResult } from '../domain/arena/types';
 import type { DungeonsState } from '../domain/dungeons/types';
 import type { DungeonDefinition } from '../domain/dungeons/types';
 import type { SpecializationState } from '../domain/specializations/types';
@@ -97,6 +102,7 @@ export type ServiceEvent =
   | { readonly type: 'talents-changed' }
   | { readonly type: 'specialization-changed' }
   | { readonly type: 'dungeon-changed' }
+  | { readonly type: 'arena-changed' }
   | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
 
 export interface CombatSessionInfo {
@@ -162,6 +168,7 @@ export class GameServices {
   private readonly talentsService: TalentsService;
   private readonly specializationsService: SpecializationsService;
   private readonly dungeonsService: DungeonsService;
+  private readonly arenaService: ArenaService;
 
   constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
     this.rng = rng;
@@ -262,6 +269,32 @@ export class GameServices {
       },
       dungeonsInitial,
     );
+    const arenaInitial: ArenaState = save.arena
+      ? {
+          rating: save.arena.rating,
+          peakRating: save.arena.peakRating,
+          fightsToday: save.arena.fightsToday,
+          lastResetAt: save.arena.lastResetAt,
+          totalWins: save.arena.totalWins,
+          totalLosses: save.arena.totalLosses,
+          history: save.arena.history.map((h) => ({ ...h })),
+        }
+      : { rating: 1000, peakRating: 1000, fightsToday: 0, lastResetAt: 0, totalWins: 0, totalLosses: 0, history: [] };
+    this.arenaService = new ArenaService(
+      ARENA_OPPONENTS,
+      DEFAULT_ARENA_CONFIG,
+      {
+        getPlayerCombatInput: () => this.buildPlayerInput(),
+        getSilver: () => this.character.silver,
+        spendSilver: (amount: number) => {
+          if (this.character.silver < amount) return false;
+          this.character = { ...this.character, silver: this.character.silver - amount };
+          return true;
+        },
+        rng: () => this.rng(),
+      },
+      arenaInitial,
+    );
     this.ensureAllProfessions();
     this.repairLegacyTools();
     this.ensureStartingTools();
@@ -291,7 +324,7 @@ export class GameServices {
     }
 
     return new GameServices(registry, {
-      schemaVersion: 15,
+      schemaVersion: 16,
       savedAt: now,
       character: characterToSnapshot(character),
       inventory: inventoryToSnapshot(inventory),
@@ -312,6 +345,7 @@ export class GameServices {
       talents: { ranks: {}, respecCount: 0 },
       specialization: { active: null, changeCount: 0, lastChangeAt: 0 },
       dungeons: { active: null, results: {} },
+      arena: { rating: 1000, peakRating: 1000, fightsToday: 0, lastResetAt: 0, totalWins: 0, totalLosses: 0, history: [] },
     }, rng);
   }
 
@@ -343,6 +377,38 @@ export class GameServices {
   }
   getSpecializationsService(): SpecializationsService { return this.specializationsService; }
   getDungeonsService(): DungeonsService { return this.dungeonsService; }
+  getArenaService(): ArenaService { return this.arenaService; }
+  fightArena(opponentId: string): ArenaFightResult | null {
+    if (this.combatState) { this.emit({ type: 'notice', message: 'Termina o combate atual primeiro.', level: 'warn' }); return null; }
+    if (this.activity) { this.emit({ type: 'notice', message: 'Termina a atividade atual primeiro.', level: 'warn' }); return null; }
+    if (this.dungeonsService.isActive()) { this.emit({ type: 'notice', message: 'Termina a dungeon primeiro.', level: 'warn' }); return null; }
+    const r = this.arenaService.fight(opponentId, Date.now());
+    if (!r) {
+      this.emit({ type: 'notice', message: 'Nao foi possivel lutar.', level: 'warn' });
+      return null;
+    }
+    if (r.rewards.silver > 0) {
+      this.character = addSilver(this.character, r.rewards.silver);
+    }
+    if (r.rewards.xp > 0) {
+      const prevLevel = this.character.level;
+      this.character = applyExperience(this.character, r.rewards.xp).state;
+      if (this.character.level > prevLevel) {
+        const d = this.getDerivedStats();
+        this.character = { ...this.character, hp: d.maxHp, resource: d.maxResource };
+      }
+    }
+    if (r.won) {
+      this.ledger.record('combat', r.rewards.silver, [], 'Arena: ' + r.opponent.name, Date.now());
+    }
+    const delta = r.rewards.ratingDelta;
+    const sign = delta >= 0 ? '+' : '';
+    const msg = (r.won ? 'VITORIA! ' : 'Derrota. ') + sign + delta + ' rating (' + r.rewards.ratingAfter + ')';
+    this.emit({ type: 'notice', message: msg, level: r.won ? 'info' : 'warn' });
+    this.emit({ type: 'arena-changed' });
+    this.emit({ type: 'character-changed' });
+    return r;
+  }
   startDungeon(dungeonId: string): boolean {
     if (this.combatState) { this.emit({ type: 'notice', message: 'Termina o combate atual primeiro.', level: 'warn' }); return false; }
     if (this.activity) { this.emit({ type: 'notice', message: 'Termina a atividade atual primeiro.', level: 'warn' }); return false; }
@@ -2396,7 +2462,7 @@ export class GameServices {
 
   toSnapshot(now: number): SaveLatest {
     return {
-      schemaVersion: 15,
+      schemaVersion: 16,
       savedAt: now,
       character: characterToSnapshot(this.character),
       inventory: inventoryToSnapshot(this.inventory),
@@ -2433,6 +2499,15 @@ export class GameServices {
       dungeons: {
         active: this.dungeonsService.getState().active ? { ...this.dungeonsService.getState().active! } : null,
         results: Object.fromEntries(Object.entries(this.dungeonsService.getState().results).map(([k, v]) => [k, { ...v }])),
+      },
+      arena: {
+        rating: this.arenaService.getState().rating,
+        peakRating: this.arenaService.getState().peakRating,
+        fightsToday: this.arenaService.getState().fightsToday,
+        lastResetAt: this.arenaService.getState().lastResetAt,
+        totalWins: this.arenaService.getState().totalWins,
+        totalLosses: this.arenaService.getState().totalLosses,
+        history: this.arenaService.getState().history.map((h) => ({ ...h })),
       },
       quests: this.questStates.map((q) => ({
         questId: q.questId as string,

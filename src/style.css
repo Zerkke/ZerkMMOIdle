@@ -7755,3 +7755,60 @@ img, svg, video {
 @media (max-width: 640px) {
   .dng-grid { grid-template-columns: 1fr; }
 }
+
+/* ==================== ARENA ==================== */
+.arena-panel { display: flex; flex-direction: column; gap: 14px; }
+.arena-status { display: flex; flex-wrap: wrap; gap: 8px; }
+.arena-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--chip-color, #6a9ad8); border-radius: 6px; background: rgba(20, 15, 40, 0.5); color: var(--chip-color, #e8e0f0); }
+.arena-chip__label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #a0a0b8; }
+.arena-chip__value { font-size: 14px; font-weight: 700; }
+.arena-section { font-size: 11px; font-weight: 700; color: #a8a0c0; text-transform: uppercase; letter-spacing: 1.5px; }
+.arena-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.arena-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 8px; border: 1px solid rgba(90, 80, 130, 0.4); background: rgba(20, 15, 40, 0.6); }
+.arena-card--out-of-range { opacity: 0.45; }
+.arena-card--locked { opacity: 0.7; }
+.arena-card__head { display: flex; align-items: center; gap: 10px; }
+.arena-card__icon { color: var(--opp-color, #e8c977); }
+.arena-card__name { flex: 1; font-size: 15px; font-weight: 700; color: var(--opp-color, #e8e0f0); }
+.arena-card__tier { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--opp-color, #e8c977); }
+.arena-card__desc { font-size: 12px; color: #c8b8e0; margin: 0; }
+.arena-card__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.arena-meta-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 3px 7px; border-radius: 4px; background: rgba(90, 80, 130, 0.3); color: #a8a0c0; font-weight: 600; }
+.arena-card__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; padding: 8px; border-radius: 4px; background: rgba(15, 10, 30, 0.5); }
+.arena-stat { display: flex; justify-content: space-between; font-size: 11px; }
+.arena-stat__label { color: #a8a0c0; }
+.arena-stat__value { color: #e8e0f0; font-weight: 600; }
+.arena-card__reward { font-size: 11px; color: #6ab87a; font-weight: 600; }
+.arena-card__btn { margin-top: 4px; padding: 10px; font-size: 12px; font-weight: 700; letter-spacing: 1px; border-radius: 6px; cursor: pointer; background: var(--opp-color, #6a9ad8); color: #0d0a1a; border: none; }
+.arena-card__btn:disabled { background: rgba(80, 70, 100, 0.4); color: #7a7088; cursor: not-allowed; }
+.arena-card__btn:hover:not(:disabled) { filter: brightness(1.1); }
+
+.arena-history { display: flex; flex-direction: column; gap: 4px; }
+.arena-history__row { display: flex; gap: 12px; padding: 6px 10px; border-radius: 4px; background: rgba(20, 15, 40, 0.5); font-size: 12px; border-left: 3px solid #6ab87a; }
+.arena-history__row--loss { border-left-color: #c85858; }
+.arena-history__date { color: #8a80a8; min-width: 130px; }
+.arena-history__name { flex: 1; color: #c8b8e0; }
+.arena-history__delta { color: #e8c977; font-weight: 700; }
+
+.arena-modal { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.arena-modal__backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.7); }
+.arena-modal__box { position: relative; padding: 24px; border-radius: 10px; border: 2px solid #e8a848; background: linear-gradient(135deg, rgba(40, 25, 60, 0.98), rgba(20, 15, 40, 0.98)); min-width: 320px; max-width: 480px; display: flex; flex-direction: column; gap: 12px; }
+.arena-modal--win .arena-modal__box { border-color: #6ab87a; box-shadow: 0 0 30px rgba(106, 184, 122, 0.4); }
+.arena-modal--loss .arena-modal__box { border-color: #c85858; box-shadow: 0 0 30px rgba(200, 88, 88, 0.3); }
+.arena-modal__title { font-size: 24px; font-weight: 700; text-align: center; letter-spacing: 2px; }
+.arena-modal--win .arena-modal__title { color: #6ab87a; }
+.arena-modal--loss .arena-modal__title { color: #c85858; }
+.arena-modal__sub { text-align: center; font-size: 13px; color: #a8a0c0; }
+.arena-modal__lines { display: flex; flex-direction: column; gap: 2px; padding: 8px; border-radius: 6px; background: rgba(15, 10, 30, 0.6); font-size: 12px; }
+.arena-modal__line { color: #c8b8e0; }
+.arena-modal__rewards { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 6px; background: rgba(15, 10, 30, 0.6); }
+.arena-modal__reward-line { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #e8e0f0; font-weight: 600; }
+.arena-modal__no-reward { font-size: 12px; color: #a8a0c0; font-style: italic; }
+.arena-modal__btn { margin-top: 4px; padding: 10px; font-size: 13px; font-weight: 700; letter-spacing: 1px; border-radius: 6px; cursor: pointer; background: #e8c977; color: #0d0a1a; border: none; }
+.arena-modal__btn:hover { filter: brightness(1.1); }
+
+@media (max-width: 640px) {
+  .arena-grid { grid-template-columns: 1fr; }
+  .arena-history__row { flex-wrap: wrap; }
+  .arena-modal__box { min-width: 0; width: calc(100% - 32px); }
+}

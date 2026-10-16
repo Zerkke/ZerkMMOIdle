@@ -5,7 +5,7 @@ import { emptySave } from '../../src/persistence/save-schema';
 describe('dungeons migration v14 -> v15', () => {
   it('v15 vazio tem dungeons com active null', () => {
     const s = migrateToLatest(emptySave(0));
-    expect(s.schemaVersion).toBe(15);
+    expect(s.schemaVersion).toBe(16);
     expect(s.dungeons.active).toBeNull();
     expect(s.dungeons.results).toEqual({});
   });
@@ -13,7 +13,7 @@ describe('dungeons migration v14 -> v15', () => {
     const v14 = { ...emptySave(0), schemaVersion: 14 } as Record<string, unknown>;
     delete v14['dungeons'];
     const s = migrateToLatest(v14);
-    expect(s.schemaVersion).toBe(15);
+    expect(s.schemaVersion).toBe(16);
     expect(s.dungeons.active).toBeNull();
   });
   it('preserva results validos', () => {

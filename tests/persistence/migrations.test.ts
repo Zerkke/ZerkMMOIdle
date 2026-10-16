@@ -19,7 +19,7 @@ describe('migrateToLatest', () => {
       equipment: { slots: { weapon: 'item.sword' } },
     };
     const r = migrateToLatest(v1);
-    expect(r.schemaVersion).toBe(15);
+    expect(r.schemaVersion).toBe(16);
     expect(r.inventory.slots[0]?.enhancementLevel).toBe(0);
     expect(r.inventory.slots[0]?.randomAttributes).toBe(null);
     expect(r.inventory.slots[0]?.essences).toBe(null);
@@ -43,7 +43,7 @@ describe('migrateToLatest', () => {
       farm: [],
     };
     const r = migrateToLatest(v5);
-    expect(r.schemaVersion).toBe(15);
+    expect(r.schemaVersion).toBe(16);
     expect(r.warehouse.capacity).toBe(100);
   });
 
@@ -63,7 +63,7 @@ describe('migrateToLatest', () => {
       idleSetup: null, lastIdleReport: null, tutorial: null,
     };
     const r = migrateToLatest(v8);
-    expect(r.schemaVersion).toBe(15);
+    expect(r.schemaVersion).toBe(16);
     expect(r.inventory.slots[0]?.enhancementLevel).toBe(2);
   });
 
@@ -88,7 +88,7 @@ describe('migrateToLatest', () => {
       idleSetup: null, lastIdleReport: null, tutorial: null, quests: [],
     };
     const r = migrateToLatest(v10);
-    expect(r.schemaVersion).toBe(15);
+    expect(r.schemaVersion).toBe(16);
     expect(r.inventory.slots[0]?.randomAttributes?.[0]?.kind).toBe('attack');
   });
 
@@ -114,7 +114,7 @@ describe('migrateToLatest', () => {
       idleSetup: null, lastIdleReport: null, tutorial: null, quests: [],
     };
     const r = migrateToLatest(v11);
-    expect(r.schemaVersion).toBe(15);
+    expect(r.schemaVersion).toBe(16);
     const ess = r.inventory.slots[0]?.essences;
     expect(ess).toBeDefined();
     expect(ess?.[0]?.itemId).toBe('item.essence.power.t1');
