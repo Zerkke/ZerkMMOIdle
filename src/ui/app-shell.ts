@@ -67,6 +67,9 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
   const report = services.getLastIdleReport();
   const reportKey = report ? report.endedAt.toString() : 'none';
 
+  const talentsState = services.getTalentsService().getState();
+  const talentsKey = Object.entries(talentsState.ranks).sort().map(([k, v]) => k + '=' + v).join(',') + '|r' + talentsState.respecCount;
+
   const farm = services.getFarm();
   const farmKey = farm.map((p) => p.id + ':' + (p.cropNodeId ?? '_') + ':' + (p.ready ? 'R' : 'G')).join(',');
 
@@ -85,6 +88,7 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
     'idle:' + idleKey,
     'report:' + reportKey,
     'farm:' + farmKey,
+    'talents:' + talentsKey,
   ].join('|');
 }
 

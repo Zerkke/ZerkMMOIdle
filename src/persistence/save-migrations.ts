@@ -1,4 +1,4 @@
-import type { SaveLatest, SaveV12, ItemStackSnapshot, EssenceInstanceSnapshot } from './save-schema';
+import type { SaveLatest, SaveV12, SaveV13, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot } from './save-schema';
 import { SAVE_SCHEMA_VERSION } from './save-schema';
 
 export class SaveParseError extends Error {
@@ -38,6 +38,7 @@ export function migrateToLatest(input: unknown): SaveLatest {
       case 9: current = migrateV9toV10(current); currentVersion = 10; break;
       case 10: current = migrateV10toV11(current); currentVersion = 11; break;
       case 11: current = migrateV11toV12(current); currentVersion = 12; break;
+      case 12: current = migrateV12toV13(current); currentVersion = 13; break;
       default: throw new SaveParseError('Sem migracao da versao ' + currentVersion + '.');
     }
   }
@@ -412,6 +413,47 @@ function migrateV11toV12(v11: unknown): SaveV12 {
   };
 }
 
+function migrateV12toV13(v12: unknown): SaveV13 {
+  if (!isRecord(v12)) throw new SaveParseError('V12 invalido.');
+  if (!isRecord(v12['character']) || !isRecord(v12['equipment']) || !isRecord(v12['combatConfig'])) {
+    throw new SaveParseError('V12 incompleto.');
+  }
+  const talentsRaw = v12['talents'];
+  let talents: TalentStateSnapshot = { ranks: {}, respecCount: 0 };
+  if (isRecord(talentsRaw)) {
+    const ranksRaw = talentsRaw['ranks'];
+    const ranks: Record<string, number> = {};
+    if (isRecord(ranksRaw)) {
+      for (const [k, v] of Object.entries(ranksRaw)) {
+        if (typeof v === 'number' && Number.isFinite(v) && v >= 0) ranks[k] = Math.floor(v);
+      }
+    }
+    const respecCount = typeof talentsRaw['respecCount'] === 'number' ? Math.max(0, Math.floor(talentsRaw['respecCount'] as number)) : 0;
+    talents = { ranks, respecCount };
+  }
+  const v12c = v12 as unknown as SaveV12;
+  return {
+    schemaVersion: 13,
+    savedAt: v12c.savedAt,
+    character: v12c.character,
+    inventory: v12c.inventory,
+    warehouse: v12c.warehouse,
+    equipment: v12c.equipment,
+    combat: v12c.combat,
+    combatConfig: v12c.combatConfig,
+    enhancementHistory: v12c.enhancementHistory,
+    professionStates: v12c.professionStates,
+    activity: v12c.activity,
+    buffs: v12c.buffs,
+    farm: v12c.farm,
+    transactions: v12c.transactions,
+    idleSetup: v12c.idleSetup,
+    lastIdleReport: v12c.lastIdleReport,
+    tutorial: v12c.tutorial,
+    quests: v12c.quests,
+    talents,
+  };
+}
 function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value)) throw new SaveParseError('Save final invalido.');
   if (value['schemaVersion'] !== SAVE_SCHEMA_VERSION) throw new SaveParseError('Versao inesperada.');
@@ -421,5 +463,6 @@ function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value['equipment'])) throw new SaveParseError('Sem equipamento.');
   if (!isRecord(value['combatConfig'])) throw new SaveParseError('Sem combatConfig.');
   if (!Array.isArray(value['quests'])) throw new SaveParseError('Sem quests.');
+  if (!isRecord(value['talents'])) throw new SaveParseError('Sem talents.');
   if (typeof value['savedAt'] !== 'number') throw new SaveParseError('Sem savedAt.');
 }

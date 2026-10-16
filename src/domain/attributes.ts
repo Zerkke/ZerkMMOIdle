@@ -93,6 +93,22 @@ export interface DeriveOptions {
   readonly enhancementLifesteal?: number | undefined;
   /** Reducao de dano (0..1) vinda de melhoramentos. Default 0. */
   readonly enhancementDamageReduction?: number | undefined;
+  /** Bonus de AP vindo de talentos. Default 0. */
+  readonly talentAp?: number | undefined;
+  /** Bonus de DP vindo de talentos. Default 0. */
+  readonly talentDp?: number | undefined;
+  /** HP maximo extra vindo de talentos. Default 0. */
+  readonly talentMaxHp?: number | undefined;
+  /** Crit chance extra vinda de talentos. Default 0. */
+  readonly talentCritChance?: number | undefined;
+  /** Crit damage extra vindo de talentos. Default 0. */
+  readonly talentCritDamage?: number | undefined;
+  /** Lifesteal vindo de talentos. Default 0. */
+  readonly talentLifesteal?: number | undefined;
+  /** HP regen por segundo vindo de talentos. Default 0. */
+  readonly talentHpRegen?: number | undefined;
+  /** Reducao de dano adicional (0..1) vinda de talentos. Default 0. */
+  readonly talentDamageReduction?: number | undefined;
 }
 
 /**
@@ -145,9 +161,17 @@ export function deriveStats(
   const enhancementCritDamage = options.enhancementCritDamage ?? 0;
   const enhancementLifesteal = options.enhancementLifesteal ?? 0;
   const enhancementDamageReduction = options.enhancementDamageReduction ?? 0;
+  const talentAp = options.talentAp ?? 0;
+  const talentDp = options.talentDp ?? 0;
+  const talentMaxHp = options.talentMaxHp ?? 0;
+  const talentCritChance = options.talentCritChance ?? 0;
+  const talentCritDamage = options.talentCritDamage ?? 0;
+  const talentLifesteal = options.talentLifesteal ?? 0;
+  const talentHpRegen = options.talentHpRegen ?? 0;
+  const talentDamageReduction = options.talentDamageReduction ?? 0;
 
-  const rawAp = power.attackPower + Math.floor(attrs.strength * C.apFromStrength) + essenceAp;
-  const rawDp = power.defensePower + Math.floor(attrs.vitality * C.dpFromVitality) + essenceDp;
+  const rawAp = power.attackPower + Math.floor(attrs.strength * C.apFromStrength) + essenceAp + talentAp;
+  const rawDp = power.defensePower + Math.floor(attrs.vitality * C.dpFromVitality) + essenceDp + talentDp;
   const ap = Math.max(0, Math.floor((rawAp + buffAp) * apScaling));
   const dp = Math.max(0, Math.floor((rawDp + buffDp) * dpScaling));
 
@@ -161,11 +185,11 @@ export function deriveStats(
     Math.floor(dp * C.defenseFromDp) +
     Math.floor(attrs.strength / C.defenseFromStrengthDivisor);
 
-  const critRaw = attrs.agility * C.critFromAgility + extraCritChance + buffCritChance + essenceCritChance;
+  const critRaw = attrs.agility * C.critFromAgility + extraCritChance + buffCritChance + essenceCritChance + talentCritChance;
   const criticalChance = Math.min(BALANCE.combat.maxCritChance, critRaw);
 
   const drBase = calculateDamageReduction(dp);
-  const drTotalRaw = drBase + enhancementDamageReduction * 100;
+  const drTotalRaw = drBase + (enhancementDamageReduction + talentDamageReduction) * 100;
   const dr = Math.min(drTotalRaw, 90);
   const resistances: Record<string, number> = {};
   for (const [type, weight] of Object.entries(BALANCE.combat.resistanceTypes)) {
@@ -173,16 +197,16 @@ export function deriveStats(
   }
 
   return {
-    maxHp: C.baseHp + attrs.vitality * C.hpPerVitality + extraMaxHp + essenceMaxHp,
+    maxHp: C.baseHp + attrs.vitality * C.hpPerVitality + extraMaxHp + essenceMaxHp + talentMaxHp,
     maxResource: C.baseResource + attrs.intelligence * C.resourcePerIntelligence,
     attack,
     defense,
     ap,
     dp,
     criticalChance,
-    lifesteal: essenceLifesteal + enhancementLifesteal,
-    hpRegenPerSec: enhancementHpRegen,
-    critDamage: enhancementCritDamage,
+    lifesteal: essenceLifesteal + enhancementLifesteal + talentLifesteal,
+    hpRegenPerSec: enhancementHpRegen + talentHpRegen,
+    critDamage: enhancementCritDamage + talentCritDamage,
     damageReduction: dr,
     resistances,
   };

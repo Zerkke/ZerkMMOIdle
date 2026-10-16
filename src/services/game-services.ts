@@ -62,6 +62,9 @@ import { TUTORIAL_STEPS } from '../data/tutorial.data';
 import type { QuestState, QuestEvent } from '../domain/quests/types';
 import { newQuestStates, evaluateAvailability, acceptQuest, applyQuestEvent, claimReward, listByStatus } from '../domain/quests/engine';
 import { QUESTS } from '../data/quests.data';
+import { TalentsService } from './talents-service';
+import { TALENT_TREE } from '../data/talents.data';
+import type { TalentState } from '../domain/talents/types';
 
 
 const PLAYER_ATTACK_INTERVAL_MS = 1000;
@@ -84,6 +87,7 @@ export type ServiceEvent =
   | { readonly type: 'idle-changed' }
   | { readonly type: 'tutorial-changed' }
   | { readonly type: 'quest-changed' }
+  | { readonly type: 'talents-changed' }
   | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
 
 export interface CombatSessionInfo {
@@ -146,6 +150,7 @@ export class GameServices {
   private tutorial: TutorialState;
   private questStates: QuestState[];
   private rng: () => number;
+  private readonly talentsService: TalentsService;
 
   constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
     this.rng = rng;
@@ -187,6 +192,23 @@ export class GameServices {
       : newQuestStates(QUESTS);
     // Avaliar disponibilidade logo no arranque (com base no nivel atual)
     this.questStates = evaluateAvailability(this.questStates, QUESTS, this.character.level);
+    const talentsInitial: TalentState = save.talents
+      ? { ranks: { ...save.talents.ranks }, respecCount: save.talents.respecCount }
+      : { ranks: {}, respecCount: 0 };
+    this.talentsService = new TalentsService(
+      TALENT_TREE,
+      {
+        getCharacterLevel: () => this.character.level,
+        getProgressionPoints: () => this.character.progressionPoints,
+        getSilver: () => this.character.silver,
+        spendSilver: (amount: number) => {
+          if (this.character.silver < amount) return false;
+          this.character = { ...this.character, silver: this.character.silver - amount };
+          return true;
+        },
+      },
+      talentsInitial,
+    );
     this.ensureAllProfessions();
     this.repairLegacyTools();
     this.ensureStartingTools();
@@ -216,7 +238,7 @@ export class GameServices {
     }
 
     return new GameServices(registry, {
-      schemaVersion: 12,
+      schemaVersion: 13,
       savedAt: now,
       character: characterToSnapshot(character),
       inventory: inventoryToSnapshot(inventory),
@@ -234,6 +256,7 @@ export class GameServices {
       lastIdleReport: null,
       tutorial: null,
       quests: [],
+      talents: { ranks: {}, respecCount: 0 },
     }, rng);
   }
 
@@ -249,6 +272,20 @@ export class GameServices {
   getEquipment(): Equipment { return this.equipment; }
   getCombatConfig(): CombatConfig { return this.combatConfig; }
   getEnhancementHistory(): readonly EnhancementHistoryEntry[] { return this.enhancementHistory; }
+  getTalentsService(): TalentsService { return this.talentsService; }
+  spendTalentPoint(talentId: string): boolean {
+    const ok = this.talentsService.spend(talentId);
+    if (ok) this.emit({ type: 'talents-changed' });
+    return ok;
+  }
+  respecTalents(): { ok: boolean; cost: number } {
+    const r = this.talentsService.respec();
+    if (r.ok) {
+      this.emit({ type: 'talents-changed' });
+      this.emit({ type: 'character-changed' });
+    }
+    return r;
+  }
   getExperienceToNext(): number { return experienceToNextLevel(this.character.level); }
 
   getProfessionState(id: ProfessionId): ProfessionState {
@@ -1964,6 +2001,7 @@ export class GameServices {
     };
 
     const essBonus = this.getEssenceBonuses();
+    const talentBonus = this.talentsService.getBonuses();
     const enh = this.getEquipmentEnhancementBonuses();
     return deriveStats(baseAttrs, totalPower, {
       apScaling: cls?.apScaling ?? 1,
@@ -1983,6 +2021,14 @@ export class GameServices {
       enhancementCritDamage: enh.critDamage,
       enhancementLifesteal: enh.lifesteal,
       enhancementDamageReduction: enh.damageReduction,
+      talentAp: talentBonus.ap,
+      talentDp: talentBonus.dp,
+      talentMaxHp: talentBonus.maxHp,
+      talentCritChance: talentBonus.critChance,
+      talentCritDamage: talentBonus.critDamage,
+      talentLifesteal: talentBonus.lifesteal,
+      talentHpRegen: talentBonus.hpRegen,
+      talentDamageReduction: talentBonus.damageReduction,
     });
   }
 
@@ -2029,17 +2075,17 @@ export class GameServices {
   }
 
   getExperienceBonus(): number {
-    return this.getEquipmentRandomBonuses().bonusXp;
+    return this.getEquipmentRandomBonuses().bonusXp + this.talentsService.getBonuses().xpBonus;
   }
 
   getSilverBonus(): number {
     const rand = this.getEquipmentRandomBonuses();
     const ess = this.getEssenceBonuses();
-    return rand.bonusSilver + ess.bonusSilver;
+    return rand.bonusSilver + ess.bonusSilver + this.talentsService.getBonuses().silverBonus;
   }
 
   getGatherYieldBonus(): number {
-    return this.getEquipmentRandomBonuses().gatherYield;
+    return this.getEquipmentRandomBonuses().gatherYield + this.talentsService.getBonuses().gatherYield;
   }
 
   getPlayerSkills(): readonly SkillDefinition[] {
@@ -2159,7 +2205,7 @@ export class GameServices {
 
   toSnapshot(now: number): SaveLatest {
     return {
-      schemaVersion: 12,
+      schemaVersion: 13,
       savedAt: now,
       character: characterToSnapshot(this.character),
       inventory: inventoryToSnapshot(this.inventory),
@@ -2183,6 +2229,10 @@ export class GameServices {
       tutorial: {
         entries: this.tutorial.entries.map((e) => ({ stepId: e.stepId, completed: e.completed, currentCount: e.currentCount, completedAt: e.completedAt })),
         rewardClaimed: Array.from(this.tutorial.rewardClaimed),
+      },
+      talents: {
+        ranks: { ...this.talentsService.getState().ranks },
+        respecCount: this.talentsService.getState().respecCount,
       },
       quests: this.questStates.map((q) => ({
         questId: q.questId as string,

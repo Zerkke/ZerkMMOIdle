@@ -7619,3 +7619,38 @@ img, svg, video {
 
   body { padding-bottom: 60px !important; }
 }
+
+/* ==================== TALENTOS ==================== */
+.talents-panel { display: flex; flex-direction: column; gap: 12px; }
+.talents-status { display: flex; flex-wrap: wrap; gap: 8px; }
+.talents-status__chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--chip-color, #6a9ad8); border-radius: 6px; background: rgba(20, 15, 40, 0.5); }
+.talents-status__label { font-size: 11px; color: #a0a0b8; text-transform: uppercase; letter-spacing: 0.5px; }
+.talents-status__value { font-size: 14px; font-weight: 700; color: var(--chip-color, #e8e0f0); }
+.talents-respec { display: flex; justify-content: flex-end; }
+.talents-respec__btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: transparent; border: 1px solid #6a3a3a; border-radius: 6px; color: #e8a0a0; cursor: pointer; font-size: 12px; }
+.talents-respec__btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.talents-respec__btn:hover:not(:disabled) { background: rgba(106, 58, 58, 0.25); }
+.talents-branches { display: flex; flex-direction: column; gap: 16px; }
+.talents-branch { border-left: 3px solid var(--branch-color, #6a9ad8); padding-left: 12px; }
+.talents-branch__head { font-size: 13px; font-weight: 700; color: var(--branch-color, #e8e0f0); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+.talents-branch__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.talent-node { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 1px solid rgba(90, 80, 130, 0.4); border-radius: 8px; background: rgba(20, 15, 40, 0.6); transition: border-color 0.15s, background 0.15s; }
+.talent-node--invested { border-color: var(--branch-color, #6a9ad8); background: rgba(30, 20, 55, 0.7); }
+.talent-node--available { box-shadow: 0 0 0 1px var(--branch-color, #6a9ad8); }
+.talent-node--locked { opacity: 0.55; }
+.talent-node__head { display: flex; align-items: center; gap: 8px; }
+.talent-node__icon { color: var(--branch-color, #e8c977); display: flex; }
+.talent-node__name { flex: 1; font-weight: 600; font-size: 13px; color: #e8e0f0; }
+.talent-node__rank { font-size: 12px; font-weight: 700; color: var(--branch-color, #e8c977); }
+.talent-node__desc { font-size: 11px; color: #a8a0c0; margin: 0; }
+.talent-node__effect { font-size: 11px; color: #c8b8e0; font-weight: 600; }
+.talent-node__prereq { display: flex; flex-wrap: wrap; gap: 4px; }
+.talent-prereq-chip { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(60, 40, 80, 0.6); color: #a090b8; text-transform: capitalize; }
+.talent-prereq-chip--ok { background: rgba(30, 90, 50, 0.6); color: #90d0a0; }
+.talent-node__btn { margin-top: 4px; padding: 6px 10px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; background: var(--branch-color, #6a9ad8); color: #0d0a1a; border: none; }
+.talent-node__btn:disabled { background: rgba(80, 70, 100, 0.4); color: #7a7088; cursor: not-allowed; }
+.talent-node__btn:hover:not(:disabled) { filter: brightness(1.1); }
+
+@media (max-width: 640px) {
+  .talents-branch__grid { grid-template-columns: 1fr; }
+}

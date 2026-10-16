@@ -11,3 +11,8 @@ Thumbs.db
 npm-debug.log*
 .env.local
 .env
+
+# Auditoria e diagnostico local
+_audit/
+_fase*.txt
+_dump_*.txt
