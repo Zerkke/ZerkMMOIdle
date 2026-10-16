@@ -5,7 +5,7 @@ import { emptySave } from '../../src/persistence/save-schema';
 describe('specialization migration v13 -> v14', () => {
   it('v14 vazio tem specialization null', () => {
     const s = migrateToLatest(emptySave(0));
-    expect(s.schemaVersion).toBe(16);
+    expect(s.schemaVersion).toBe(17);
     expect(s.specialization.active).toBeNull();
   });
 
@@ -13,7 +13,7 @@ describe('specialization migration v13 -> v14', () => {
     const v13 = { ...emptySave(0), schemaVersion: 13 } as Record<string, unknown>;
     delete v13['specialization'];
     const s = migrateToLatest(v13);
-    expect(s.schemaVersion).toBe(16);
+    expect(s.schemaVersion).toBe(17);
     expect(s.specialization.active).toBeNull();
   });
 

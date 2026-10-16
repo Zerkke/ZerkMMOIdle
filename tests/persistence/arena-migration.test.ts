@@ -5,7 +5,7 @@ import { emptySave } from '../../src/persistence/save-schema';
 describe('arena migration v15 -> v16', () => {
   it('v16 vazio tem rating 1000', () => {
     const s = migrateToLatest(emptySave(0));
-    expect(s.schemaVersion).toBe(16);
+    expect(s.schemaVersion).toBe(17);
     expect(s.arena.rating).toBe(1000);
     expect(s.arena.history).toEqual([]);
   });

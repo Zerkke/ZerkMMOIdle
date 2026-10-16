@@ -73,6 +73,10 @@ import { ARENA_OPPONENTS } from '../data/arena.data';
 import { DEFAULT_ARENA_CONFIG } from '../domain/arena/types';
 import type { ArenaState } from '../domain/arena/types';
 import type { ArenaFightResult } from '../domain/arena/types';
+import { PvpService } from './pvp-service';
+import { DEFAULT_PVP_CONFIG } from '../domain/pvp/types';
+import type { PvpState, PvpSnapshot } from '../domain/pvp/types';
+import { PVP_SNAPSHOT_VERSION } from '../domain/pvp/types';
 import type { DungeonsState } from '../domain/dungeons/types';
 import type { DungeonDefinition } from '../domain/dungeons/types';
 import type { SpecializationState } from '../domain/specializations/types';
@@ -103,6 +107,7 @@ export type ServiceEvent =
   | { readonly type: 'specialization-changed' }
   | { readonly type: 'dungeon-changed' }
   | { readonly type: 'arena-changed' }
+  | { readonly type: 'pvp-changed' }
   | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
 
 export interface CombatSessionInfo {
@@ -169,6 +174,7 @@ export class GameServices {
   private readonly specializationsService: SpecializationsService;
   private readonly dungeonsService: DungeonsService;
   private readonly arenaService: ArenaService;
+  private readonly pvpService: PvpService;
 
   constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
     this.rng = rng;
@@ -295,6 +301,29 @@ export class GameServices {
       },
       arenaInitial,
     );
+    const pvpInitial: PvpState = save.pvp
+      ? {
+          registeredBuild: save.pvp.registeredBuild ? { ...save.pvp.registeredBuild, skills: save.pvp.registeredBuild.skills.map((s) => ({ ...s })) } : null,
+          registeredAt: save.pvp.registeredAt,
+          dailyAttacksUsed: save.pvp.dailyAttacksUsed,
+          dailyResetAt: save.pvp.dailyResetAt,
+          localRating: save.pvp.localRating,
+          localPeakRating: save.pvp.localPeakRating,
+          localWins: save.pvp.localWins,
+          localLosses: save.pvp.localLosses,
+          history: save.pvp.history.map((h) => ({ ...h })),
+        }
+      : { registeredBuild: null, registeredAt: null, dailyAttacksUsed: 0, dailyResetAt: 0, localRating: 1000, localPeakRating: 1000, localWins: 0, localLosses: 0, history: [] };
+    this.pvpService = new PvpService(
+      DEFAULT_PVP_CONFIG,
+      {
+        getCurrentSnapshot: () => this.buildPvpSnapshot(),
+        getUserId: () => this.character.id,
+        rngSalt: () => Math.floor(Date.now() / 1000),
+        now: () => Date.now(),
+      },
+      pvpInitial,
+    );
     this.ensureAllProfessions();
     this.repairLegacyTools();
     this.ensureStartingTools();
@@ -324,7 +353,7 @@ export class GameServices {
     }
 
     return new GameServices(registry, {
-      schemaVersion: 16,
+      schemaVersion: 17,
       savedAt: now,
       character: characterToSnapshot(character),
       inventory: inventoryToSnapshot(inventory),
@@ -346,6 +375,7 @@ export class GameServices {
       specialization: { active: null, changeCount: 0, lastChangeAt: 0 },
       dungeons: { active: null, results: {} },
       arena: { rating: 1000, peakRating: 1000, fightsToday: 0, lastResetAt: 0, totalWins: 0, totalLosses: 0, history: [] },
+      pvp: { registeredBuild: null, registeredAt: null, dailyAttacksUsed: 0, dailyResetAt: 0, localRating: 1000, localPeakRating: 1000, localWins: 0, localLosses: 0, history: [] },
     }, rng);
   }
 
@@ -378,6 +408,43 @@ export class GameServices {
   getSpecializationsService(): SpecializationsService { return this.specializationsService; }
   getDungeonsService(): DungeonsService { return this.dungeonsService; }
   getArenaService(): ArenaService { return this.arenaService; }
+  getPvpService(): PvpService { return this.pvpService; }
+  buildPvpSnapshot(): PvpSnapshot {
+    const d = this.getDerivedStats();
+    const spec = this.specializationsService.getActive();
+    const skills = this.getPlayerSkills();
+    return {
+      version: PVP_SNAPSHOT_VERSION,
+      characterName: this.character.name,
+      characterLevel: this.character.level,
+      specId: spec ? spec.id : null,
+      maxHp: d.maxHp,
+      maxResource: d.maxResource,
+      attack: d.attack,
+      defense: d.defense,
+      ap: d.ap,
+      dp: d.dp,
+      critChance: d.criticalChance,
+      critDamage: d.critDamage,
+      lifesteal: d.lifesteal,
+      damageReduction: d.damageReduction,
+      hpRegenPerSec: d.hpRegenPerSec,
+      attackIntervalMs: 1000,
+      resourceRegenPerSec: 3,
+      skills: skills.map((s) => ({
+        id: s.id as string,
+        kind: s.kind,
+        cooldownMs: s.cooldownMs,
+        resourceCost: s.resourceCost,
+        multiplier: s.multiplier,
+      })),
+    };
+  }
+  async registerPvpBuild(): Promise<boolean> {
+    const r = await this.pvpService.registerBuild();
+    if (r.ok) this.emit({ type: 'pvp-changed' });
+    return r.ok;
+  }
   fightArena(opponentId: string): ArenaFightResult | null {
     if (this.combatState) { this.emit({ type: 'notice', message: 'Termina o combate atual primeiro.', level: 'warn' }); return null; }
     if (this.activity) { this.emit({ type: 'notice', message: 'Termina a atividade atual primeiro.', level: 'warn' }); return null; }
@@ -2462,7 +2529,7 @@ export class GameServices {
 
   toSnapshot(now: number): SaveLatest {
     return {
-      schemaVersion: 16,
+      schemaVersion: 17,
       savedAt: now,
       character: characterToSnapshot(this.character),
       inventory: inventoryToSnapshot(this.inventory),
@@ -2508,6 +2575,17 @@ export class GameServices {
         totalWins: this.arenaService.getState().totalWins,
         totalLosses: this.arenaService.getState().totalLosses,
         history: this.arenaService.getState().history.map((h) => ({ ...h })),
+      },
+      pvp: {
+        registeredBuild: this.pvpService.getState().registeredBuild ? { ...this.pvpService.getState().registeredBuild!, skills: this.pvpService.getState().registeredBuild!.skills.map((s) => ({ ...s })) } : null,
+        registeredAt: this.pvpService.getState().registeredAt,
+        dailyAttacksUsed: this.pvpService.getState().dailyAttacksUsed,
+        dailyResetAt: this.pvpService.getState().dailyResetAt,
+        localRating: this.pvpService.getState().localRating,
+        localPeakRating: this.pvpService.getState().localPeakRating,
+        localWins: this.pvpService.getState().localWins,
+        localLosses: this.pvpService.getState().localLosses,
+        history: this.pvpService.getState().history.map((h) => ({ ...h })),
       },
       quests: this.questStates.map((q) => ({
         questId: q.questId as string,

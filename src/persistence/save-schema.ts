@@ -1,4 +1,4 @@
-export const SAVE_SCHEMA_VERSION = 16;
+export const SAVE_SCHEMA_VERSION = 17;
 
 export interface CharacterSnapshotV1 {
   readonly id: string;
@@ -331,11 +331,87 @@ export interface SaveV16 {
   readonly arena: ArenaStateSnapshot;
 }
 
-export type SaveLatest = SaveV16;
+export interface PvpSnapshotSnapshot {
+  readonly version: number;
+  readonly characterName: string;
+  readonly characterLevel: number;
+  readonly specId: string | null;
+  readonly maxHp: number;
+  readonly maxResource: number;
+  readonly attack: number;
+  readonly defense: number;
+  readonly ap: number;
+  readonly dp: number;
+  readonly critChance: number;
+  readonly critDamage: number;
+  readonly lifesteal: number;
+  readonly damageReduction: number;
+  readonly hpRegenPerSec: number;
+  readonly attackIntervalMs: number;
+  readonly resourceRegenPerSec: number;
+  readonly skills: readonly {
+    readonly id: string;
+    readonly kind: 'damage' | 'heal';
+    readonly cooldownMs: number;
+    readonly resourceCost: number;
+    readonly multiplier: number;
+  }[];
+}
 
-export function emptySave(savedAt: number): SaveV16 {
+export interface PvpHistorySnapshot {
+  readonly foughtAt: number;
+  readonly defenderId: string;
+  readonly defenderName: string;
+  readonly won: boolean;
+  readonly attackerRatingBefore: number;
+  readonly attackerRatingAfter: number;
+  readonly defenderRatingBefore: number;
+  readonly defenderRatingAfter: number;
+}
+
+export interface PvpStateSnapshot {
+  readonly registeredBuild: PvpSnapshotSnapshot | null;
+  readonly registeredAt: number | null;
+  readonly dailyAttacksUsed: number;
+  readonly dailyResetAt: number;
+  readonly localRating: number;
+  readonly localPeakRating: number;
+  readonly localWins: number;
+  readonly localLosses: number;
+  readonly history: readonly PvpHistorySnapshot[];
+}
+
+export interface SaveV17 {
+  readonly schemaVersion: 17;
+  readonly savedAt: number;
+  readonly character: CharacterSnapshotV1;
+  readonly inventory: InventorySnapshot;
+  readonly warehouse: InventorySnapshot;
+  readonly equipment: EquipmentSnapshot;
+  readonly combat: CombatSnapshot | null;
+  readonly combatConfig: CombatConfigSnapshot;
+  readonly enhancementHistory: readonly EnhancementHistorySnapshot[];
+  readonly professionStates: Readonly<Record<string, ProfessionStateSnapshot>>;
+  readonly activity: ActivitySnapshot | null;
+  readonly buffs: readonly ActiveBuffSnapshot[];
+  readonly farm: readonly FarmPlotSnapshot[];
+  readonly transactions: readonly TransactionSnapshot[];
+  readonly idleSetup: IdleConfigSnapshot | null;
+  readonly lastIdleReport: IdleReportSnapshot | null;
+  readonly tutorial: TutorialStateSnapshot | null;
+  readonly quests: readonly QuestStateSnapshot[];
+  readonly talents: TalentStateSnapshot;
+  readonly specialization: SpecializationStateSnapshot;
+  readonly dungeons: DungeonsStateSnapshot;
+  readonly arena: ArenaStateSnapshot;
+  readonly pvp: PvpStateSnapshot;
+}
+
+export type SaveLatest = SaveV17;
+
+export function emptySave(savedAt: number): SaveV17 {
   return {
-    schemaVersion: 16,
+    schemaVersion: 17,
     savedAt,
     character: {
       id: 'local', name: 'Aventureiro', classId: 'class.ferrumancer',
@@ -367,6 +443,17 @@ export function emptySave(savedAt: number): SaveV16 {
       lastResetAt: 0,
       totalWins: 0,
       totalLosses: 0,
+      history: [],
+    },
+    pvp: {
+      registeredBuild: null,
+      registeredAt: null,
+      dailyAttacksUsed: 0,
+      dailyResetAt: 0,
+      localRating: 1000,
+      localPeakRating: 1000,
+      localWins: 0,
+      localLosses: 0,
       history: [],
     },
   };

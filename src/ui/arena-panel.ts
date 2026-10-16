@@ -1,8 +1,13 @@
 import type { GameServices } from '../services/game-services';
+import { renderPanelHeader } from './panel-header';
+import { renderPvpPanel } from './pvp-panel';
+import { createIcon, type IconName } from './icons';
 import type { ArenaOpponentView } from '../services/arena-service';
 import type { ArenaFightResult } from '../domain/arena/types';
-import { renderPanelHeader } from './panel-header';
-import { createIcon, type IconName } from './icons';
+
+type ArenaTab = 'ai' | 'pvp';
+
+let activeArenaTab: ArenaTab = 'ai';
 
 export function renderArenaPanel(services: GameServices): HTMLElement {
   const root = document.createElement('div');
@@ -11,12 +16,51 @@ export function renderArenaPanel(services: GameServices): HTMLElement {
   root.appendChild(renderPanelHeader({
     icon: 'flame',
     title: 'Arena',
-    subtitle: 'Desafios contra lendas. 5 lutas por dia.',
+    subtitle: 'Combate contra IA ou contra outras builds de jogadores.',
   }));
+
+  // Sub-tabs
+  const tabs = document.createElement('div');
+  tabs.className = 'arena-subtabs';
+  const defs: { id: ArenaTab; label: string; icon: IconName }[] = [
+    { id: 'ai', label: 'Contra IA', icon: 'sparkles' },
+    { id: 'pvp', label: 'Contra Jogadores', icon: 'swords' },
+  ];
+  for (const t of defs) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'arena-subtab' + (activeArenaTab === t.id ? ' arena-subtab--active' : '');
+    b.appendChild(createIcon(t.icon, 16));
+    const lbl = document.createElement('span');
+    lbl.textContent = t.label;
+    b.appendChild(lbl);
+    b.addEventListener('click', () => {
+      activeArenaTab = t.id;
+      const fresh = renderArenaPanel(services);
+      root.replaceWith(fresh);
+    });
+    tabs.appendChild(b);
+  }
+  root.appendChild(tabs);
+
+  const content = document.createElement('div');
+  content.className = 'arena-content';
+  if (activeArenaTab === 'ai') {
+    content.appendChild(renderAiArena(services));
+  } else {
+    content.appendChild(renderPvpPanel(services));
+  }
+  root.appendChild(content);
+
+  return root;
+}
+
+function renderAiArena(services: GameServices): HTMLElement {
+  const root = document.createElement('div');
+  root.className = 'arena-ai-content';
 
   const svc = services.getArenaService();
   const view = svc.buildView(Date.now());
-
   const tierColor = tierColorFor(view.tier);
 
   const status = document.createElement('div');
@@ -195,7 +239,8 @@ function showResultModal(services: GameServices, r: ArenaFightResult, root: HTML
   btn.textContent = 'FECHAR';
   btn.addEventListener('click', () => {
     modal.remove();
-    rerender(services, root);
+    const fresh = renderArenaPanel(services);
+    root.closest('.arena-content')?.replaceWith(fresh.querySelector('.arena-content') ?? fresh);
   });
   box.appendChild(btn);
 
@@ -280,8 +325,4 @@ function sectionTitle(text: string): HTMLElement {
   el.className = 'arena-section';
   el.textContent = text;
   return el;
-}
-
-function rerender(services: GameServices, container: HTMLElement): void {
-  container.replaceWith(renderArenaPanel(services));
 }

@@ -1,4 +1,4 @@
-import type { SaveLatest, SaveV12, SaveV13, SaveV14, SaveV15, SaveV16, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot, SpecializationStateSnapshot, DungeonRunSnapshot, DungeonBestResultSnapshot, ArenaStateSnapshot, ArenaHistorySnapshot } from './save-schema';
+import type { SaveLatest, SaveV12, SaveV13, SaveV14, SaveV15, SaveV16, SaveV17, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot, SpecializationStateSnapshot, DungeonRunSnapshot, DungeonBestResultSnapshot, ArenaStateSnapshot, ArenaHistorySnapshot, PvpStateSnapshot, PvpSnapshotSnapshot } from './save-schema';
 import { SAVE_SCHEMA_VERSION } from './save-schema';
 
 export class SaveParseError extends Error {
@@ -42,6 +42,7 @@ export function migrateToLatest(input: unknown): SaveLatest {
       case 13: current = migrateV13toV14(current); currentVersion = 14; break;
       case 14: current = migrateV14toV15(current); currentVersion = 15; break;
       case 15: current = migrateV15toV16(current); currentVersion = 16; break;
+      case 16: current = migrateV16toV17(current); currentVersion = 17; break;
       default: throw new SaveParseError('Sem migracao da versao ' + currentVersion + '.');
     }
   }
@@ -632,6 +633,128 @@ function migrateV15toV16(v15: unknown): SaveV16 {
     arena,
   };
 }
+function migrateV16toV17(v16: unknown): SaveV17 {
+  if (!isRecord(v16)) throw new SaveParseError('V16 invalido.');
+  if (!isRecord(v16['character']) || !isRecord(v16['equipment']) || !isRecord(v16['combatConfig'])) {
+    throw new SaveParseError('V16 incompleto.');
+  }
+
+  let pvp: PvpStateSnapshot = {
+    registeredBuild: null,
+    registeredAt: null,
+    dailyAttacksUsed: 0,
+    dailyResetAt: 0,
+    localRating: 1000,
+    localPeakRating: 1000,
+    localWins: 0,
+    localLosses: 0,
+    history: [],
+  };
+
+  const pRaw = v16['pvp'];
+  if (isRecord(pRaw)) {
+    const num = (v: unknown, def: number, min = 0): number => {
+      if (typeof v !== 'number' || !Number.isFinite(v) || v < min) return def;
+      return Math.floor(v);
+    };
+    const rb = pRaw['registeredBuild'];
+    let registeredBuild: PvpSnapshotSnapshot | null = null;
+    if (isRecord(rb)) {
+      registeredBuild = {
+        version: num(rb['version'], 1, 1),
+        characterName: typeof rb['characterName'] === 'string' ? rb['characterName'] : '',
+        characterLevel: num(rb['characterLevel'], 1, 1),
+        specId: typeof rb['specId'] === 'string' ? rb['specId'] : null,
+        maxHp: num(rb['maxHp'], 100, 1),
+        maxResource: num(rb['maxResource'], 50, 0),
+        attack: num(rb['attack'], 10, 1),
+        defense: num(rb['defense'], 0, 0),
+        ap: num(rb['ap'], 0, 0),
+        dp: num(rb['dp'], 0, 0),
+        critChance: num(rb['critChance'], 0, 0),
+        critDamage: num(rb['critDamage'], 0, 0),
+        lifesteal: num(rb['lifesteal'], 0, 0),
+        damageReduction: num(rb['damageReduction'], 0, 0),
+        hpRegenPerSec: num(rb['hpRegenPerSec'], 0, 0),
+        attackIntervalMs: num(rb['attackIntervalMs'], 1000, 200),
+        resourceRegenPerSec: num(rb['resourceRegenPerSec'], 3, 0),
+        skills: [],
+      };
+      const skillsRaw = rb['skills'];
+      if (Array.isArray(skillsRaw)) {
+        const skills: { id: string; kind: 'damage' | 'heal'; cooldownMs: number; resourceCost: number; multiplier: number }[] = [];
+        for (const s of skillsRaw) {
+          if (!isRecord(s)) continue;
+          skills.push({
+            id: typeof s['id'] === 'string' ? s['id'] : '',
+            kind: s['kind'] === 'heal' ? 'heal' : 'damage',
+            cooldownMs: num(s['cooldownMs'], 5000, 100),
+            resourceCost: num(s['resourceCost'], 0, 0),
+            multiplier: num(s['multiplier'], 1, 0),
+          });
+        }
+        registeredBuild = { ...registeredBuild, skills };
+      }
+    }
+
+    const hist: import('./save-schema').PvpHistorySnapshot[] = [];
+    const hRaw = pRaw['history'];
+    if (Array.isArray(hRaw)) {
+      for (const e of hRaw) {
+        if (!isRecord(e)) continue;
+        hist.push({
+          foughtAt: num(e['foughtAt'], 0),
+          defenderId: typeof e['defenderId'] === 'string' ? e['defenderId'] : '',
+          defenderName: typeof e['defenderName'] === 'string' ? e['defenderName'] : '',
+          won: e['won'] === true,
+          attackerRatingBefore: num(e['attackerRatingBefore'], 1000),
+          attackerRatingAfter: num(e['attackerRatingAfter'], 1000),
+          defenderRatingBefore: num(e['defenderRatingBefore'], 1000),
+          defenderRatingAfter: num(e['defenderRatingAfter'], 1000),
+        });
+      }
+    }
+
+    pvp = {
+      registeredBuild,
+      registeredAt: typeof pRaw['registeredAt'] === 'number' && Number.isFinite(pRaw['registeredAt']) ? Math.floor(pRaw['registeredAt'] as number) : null,
+      dailyAttacksUsed: num(pRaw['dailyAttacksUsed'], 0),
+      dailyResetAt: num(pRaw['dailyResetAt'], 0),
+      localRating: num(pRaw['localRating'], 1000),
+      localPeakRating: num(pRaw['localPeakRating'], 1000),
+      localWins: num(pRaw['localWins'], 0),
+      localLosses: num(pRaw['localLosses'], 0),
+      history: hist,
+    };
+  }
+
+  const v16c = v16 as unknown as SaveV16;
+  return {
+    schemaVersion: 17,
+    savedAt: v16c.savedAt,
+    character: v16c.character,
+    inventory: v16c.inventory,
+    warehouse: v16c.warehouse,
+    equipment: v16c.equipment,
+    combat: v16c.combat,
+    combatConfig: v16c.combatConfig,
+    enhancementHistory: v16c.enhancementHistory,
+    professionStates: v16c.professionStates,
+    activity: v16c.activity,
+    buffs: v16c.buffs,
+    farm: v16c.farm,
+    transactions: v16c.transactions,
+    idleSetup: v16c.idleSetup,
+    lastIdleReport: v16c.lastIdleReport,
+    tutorial: v16c.tutorial,
+    quests: v16c.quests,
+    talents: v16c.talents,
+    specialization: v16c.specialization,
+    dungeons: v16c.dungeons,
+    arena: v16c.arena,
+    pvp,
+  };
+}
 function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value)) throw new SaveParseError('Save final invalido.');
   if (value['schemaVersion'] !== SAVE_SCHEMA_VERSION) throw new SaveParseError('Versao inesperada.');
@@ -645,5 +768,6 @@ function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value['specialization'])) throw new SaveParseError('Sem specialization.');
   if (!isRecord(value['dungeons'])) throw new SaveParseError('Sem dungeons.');
   if (!isRecord(value['arena'])) throw new SaveParseError('Sem arena.');
+  if (!isRecord(value['pvp'])) throw new SaveParseError('Sem pvp.');
   if (typeof value['savedAt'] !== 'number') throw new SaveParseError('Sem savedAt.');
 }
