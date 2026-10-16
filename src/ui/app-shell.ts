@@ -151,7 +151,14 @@ export function mountAppShell(hosts: AppShellHosts, options: AppShellOptions): v
     hosts.resourceHost.replaceChildren(renderResourceBar(services));
     hosts.buffHost.replaceChildren(renderBuffBar(services));
     hosts.tutorialHost.replaceChildren(renderTutorialOverlay(services));
-    hosts.bannerHost.replaceChildren(renderActivityBanner(services));
+    // Anti-flicker: so substitui o DOM do banner se a "forma" mudou.
+    // Chave estrutural muda apenas quando muda a ATIVIDADE (nao HP/log).
+    const bannerKey = computeBannerKey(services);
+    const prevKey = hosts.bannerHost.dataset['key'] ?? '';
+    if (bannerKey !== prevKey) {
+      hosts.bannerHost.replaceChildren(renderActivityBanner(services));
+      hosts.bannerHost.dataset['key'] = bannerKey;
+    }
     const renderer = PANEL_RENDERERS[active];
     hosts.panelHost.replaceChildren(renderer(services, registry));
   };
@@ -241,6 +248,15 @@ function updateBuffTimers(services: GameServices): void {
     const el = document.querySelector('[data-buff-time="' + (b.buffId as string) + '"]');
     if (el) el.textContent = formatDuration(remaining);
   }
+}
+
+/** Chave que identifica a FORMA do banner (nao os valores live). */
+function computeBannerKey(services: GameServices): string {
+  const combat = services.getCombatSession();
+  if (combat) return 'combat:' + combat.monsterId;
+  const activity = services.getActivity();
+  if (activity) return activity.kind + ':' + activity.targetId;
+  return 'idle';
 }
 
 function formatDuration(ms: number): string {

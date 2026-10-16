@@ -1536,6 +1536,83 @@ export class GameServices {
     return true;
   }
 
+  /* ==================== Reparacao de ferramentas ==================== */
+
+  /**
+   * Calcula o custo total para reparar TODAS as ferramentas (equipadas + inventario).
+   * Custo: 2 prata por ponto de durabilidade faltante (mesmo valor do Ferreiro).
+   * Retorna null se nao ha ferramentas para reparar.
+   */
+  getRepairAllToolsCost(): { cost: number; toolCount: number; missingTotal: number } | null {
+    const REPAIR_COST_PER_POINT = 2;
+    let totalMissing = 0;
+    let toolCount = 0;
+
+    for (const stack of this.equipment.list().values()) {
+      const def = this.registry.getItem(stack.itemId);
+      if (!def || !isTool(def)) continue;
+      const dur = stack.durability ?? 0;
+      if (dur >= def.maxDurability) continue;
+      totalMissing += def.maxDurability - dur;
+      toolCount += 1;
+    }
+
+    for (const stack of this.inventory.list()) {
+      if (!stack) continue;
+      const def = this.registry.getItem(stack.itemId);
+      if (!def || !isTool(def)) continue;
+      const dur = stack.durability ?? 0;
+      if (dur >= def.maxDurability) continue;
+      totalMissing += def.maxDurability - dur;
+      toolCount += 1;
+    }
+
+    if (toolCount === 0 || totalMissing === 0) return null;
+    return { cost: totalMissing * REPAIR_COST_PER_POINT, toolCount, missingTotal: totalMissing };
+  }
+
+  /**
+   * Repara todas as ferramentas (equipadas + inventario) ao maximo.
+   * Cobra prata proporcional aos pontos de durabilidade faltantes.
+   */
+  repairAllTools(): boolean {
+    const preview = this.getRepairAllToolsCost();
+    if (!preview) {
+      this.emit({ type: 'notice', message: 'Nenhuma ferramenta precisa de reparacao.', level: 'info' });
+      return false;
+    }
+    if (this.character.silver < preview.cost) {
+      this.emit({ type: 'notice', message: 'Prata insuficiente (' + preview.cost + ' precisos).', level: 'warn' });
+      return false;
+    }
+
+    this.character = addSilver(this.character, -preview.cost);
+
+    for (const [slotId, stack] of this.equipment.list()) {
+      const def = this.registry.getItem(stack.itemId);
+      if (!def || !isTool(def)) continue;
+      if (stack.durability === null || stack.durability >= def.maxDurability) continue;
+      this.equipment.setSlot(slotId, { ...stack, durability: def.maxDurability });
+    }
+
+    const invList = this.inventory.list();
+    for (let i = 0; i < invList.length; i++) {
+      const stack = invList[i];
+      if (!stack) continue;
+      const def = this.registry.getItem(stack.itemId);
+      if (!def || !isTool(def)) continue;
+      if (stack.durability === null || stack.durability >= def.maxDurability) continue;
+      this.inventory.setAt(i, { ...stack, durability: def.maxDurability });
+    }
+
+    this.ledger.record('buy', -preview.cost, [], 'Reparacao: ' + preview.toolCount + ' ferramenta(s)', Date.now());
+    this.emit({ type: 'equipment-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'notice', message: preview.toolCount + ' ferramenta(s) reparada(s) por ' + preview.cost + ' prata.', level: 'info' });
+    return true;
+  }
+
   /* ==================== Metricas ==================== */
 
   getMetrics(): EconomyMetrics { return this.ledger.metrics(); }

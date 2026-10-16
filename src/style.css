@@ -8065,3 +8065,2832 @@ img, svg, video {
 #tab-nav::-webkit-scrollbar { width: 6px; }
 #tab-nav::-webkit-scrollbar-thumb { background: rgba(90, 80, 130, 0.4); border-radius: 3px; }
 #tab-nav::-webkit-scrollbar-track { background: transparent; }
+
+/* ============================================================
+   FASE 10 — REFRESH VISUAL
+   Paleta vibrante, fundos com profundidade, brilhos.
+   Puro CSS aditivo no fim do ficheiro.
+   ============================================================ */
+
+:root {
+  /* Fundos — mais ricos, menos mortos */
+  --z-bg-deep:      #080416;
+  --z-bg-panel:     #150a2e;
+  --z-bg-panel-2:   #1c0f3d;
+  --z-bg-elevated:  #2a1554;
+  --z-bg-card:      #1e1142;
+
+  /* Dourado vibrante (com brilho) */
+  --z-gold:         #f4c95d;
+  --z-gold-bright:  #ffdd7e;
+  --z-gold-deep:    #a86d15;
+
+  /* Roxo elétrico */
+  --z-purple:       #a855f7;
+  --z-purple-light: #c084fc;
+
+  /* Acentos secundários */
+  --z-cyan:         #22d3ee;
+  --z-magenta:      #e879f9;
+  --z-emerald:      #34d399;
+  --z-crimson:      #f43f5e;
+
+  /* Texto — hierarquia clara */
+  --z-text:         #f5f0ff;
+  --z-text-2:       #c8b8e0;
+  --z-text-muted:   #8a7ab0;
+
+  /* Estados */
+  --z-hp:           #ef4444;
+  --z-hp-bright:    #fb7185;
+  --z-resource:     #3b82f6;
+  --z-xp:           #a855f7;
+  --z-silver:       #f4c95d;
+
+  /* Brilhos e sombras */
+  --z-glow-gold:    0 0 14px rgba(244, 201, 93, 0.45);
+  --z-glow-purple:  0 0 14px rgba(168, 85, 247, 0.5);
+  --z-glow-soft:    0 0 24px rgba(168, 85, 247, 0.18);
+  --z-shadow-card:  0 4px 18px rgba(0, 0, 0, 0.55);
+  --z-shadow-elev:  0 10px 40px rgba(0, 0, 0, 0.75);
+  --z-border-gold:  1px solid rgba(244, 201, 93, 0.35);
+  --z-border-soft:  1px solid rgba(168, 85, 247, 0.22);
+}
+
+/* ---------- Fundo global com profundidade ---------- */
+body {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(168, 85, 247, 0.15) 0%, transparent 45%),
+    radial-gradient(circle at 80% 100%, rgba(34, 211, 238, 0.08) 0%, transparent 50%),
+    linear-gradient(180deg, #0a0519 0%, #05020e 100%) !important;
+  background-attachment: fixed !important;
+}
+
+/* ---------- Header com brilho dourado ---------- */
+#game-header {
+  background: linear-gradient(180deg, rgba(28, 15, 61, 0.98) 0%, rgba(15, 8, 38, 0.98) 100%);
+  border-bottom: 1px solid rgba(244, 201, 93, 0.28);
+  box-shadow: 0 2px 20px rgba(168, 85, 247, 0.15), inset 0 -1px 0 rgba(244, 201, 93, 0.15);
+}
+
+.header-brand h1 {
+  background: linear-gradient(135deg, #ffdd7e 0%, #f4c95d 40%, #a855f7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 24px rgba(244, 201, 93, 0.35);
+  letter-spacing: 2px;
+}
+
+#game-version {
+  color: var(--z-text-muted) !important;
+  font-style: italic;
+}
+
+/* ---------- Sidebar mais profunda ---------- */
+#tab-nav {
+  background: linear-gradient(180deg, rgba(15, 8, 38, 0.96) 0%, rgba(8, 4, 22, 0.99) 100%) !important;
+  border-right: 1px solid rgba(168, 85, 247, 0.25) !important;
+  box-shadow: 2px 0 24px rgba(0, 0, 0, 0.5);
+}
+
+.nav-group__label {
+  color: #7a6a9d !important;
+  text-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+}
+
+.nav-button {
+  color: #c8b8e0 !important;
+  transition: all 0.18s ease !important;
+}
+
+.nav-button:hover {
+  background: linear-gradient(90deg, rgba(168, 85, 247, 0.15), rgba(168, 85, 247, 0.03)) !important;
+  color: #f5f0ff !important;
+  transform: translateX(2px);
+}
+
+.nav-button--active {
+  background: linear-gradient(90deg, rgba(244, 201, 93, 0.22), rgba(244, 201, 93, 0.04)) !important;
+  color: #ffdd7e !important;
+  border-color: rgba(244, 201, 93, 0.55) !important;
+  box-shadow: 0 0 16px rgba(244, 201, 93, 0.2), inset 0 0 12px rgba(244, 201, 93, 0.08);
+}
+
+.nav-button--active::before {
+  background: linear-gradient(180deg, #ffdd7e, #a855f7) !important;
+  box-shadow: 0 0 8px rgba(244, 201, 93, 0.7);
+  width: 3px !important;
+}
+
+/* ---------- Main content — fundo subtil ---------- */
+#game-main {
+  background: radial-gradient(ellipse at top, rgba(168, 85, 247, 0.06) 0%, transparent 60%);
+}
+
+/* ---------- Painéis base — vidro escuro ---------- */
+.panel-content {
+  color: var(--z-text);
+}
+
+/* ---------- Resource bar (topo, prata/nivel/xp) ---------- */
+.resource-bar__item {
+  background: linear-gradient(180deg, rgba(42, 21, 84, 0.9), rgba(30, 17, 66, 0.9));
+  border: 1px solid rgba(244, 201, 93, 0.22);
+  box-shadow: inset 0 1px 0 rgba(244, 201, 93, 0.1), 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.resource-bar__item:hover {
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(244, 201, 93, 0.2), 0 4px 12px rgba(168, 85, 247, 0.2);
+}
+
+.resource-bar__value {
+  color: #ffdd7e !important;
+  text-shadow: 0 0 10px rgba(244, 201, 93, 0.4);
+}
+
+/* ---------- Scrollbar com gradiente ---------- */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(15, 8, 38, 0.6); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.6), rgba(244, 201, 93, 0.5));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(168, 85, 247, 0.9), rgba(244, 201, 93, 0.8));
+}
+
+/* ============================================================
+   FASE 10 — BLOCO B
+   Cards elevados, botões com gradiente, barras com shimmer,
+   headers com peso. Tudo aditivo.
+   ============================================================ */
+
+/* ---------- ANIMACOES BASE ---------- */
+@keyframes z-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes z-pulse-gold {
+  0%, 100% { box-shadow: 0 0 12px rgba(244, 201, 93, 0.35), inset 0 0 8px rgba(244, 201, 93, 0.1); }
+  50%      { box-shadow: 0 0 22px rgba(244, 201, 93, 0.65), inset 0 0 14px rgba(244, 201, 93, 0.22); }
+}
+
+@keyframes z-glow-purple {
+  0%, 100% { box-shadow: 0 0 10px rgba(168, 85, 247, 0.3); }
+  50%      { box-shadow: 0 0 20px rgba(168, 85, 247, 0.55); }
+}
+
+@keyframes z-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- PAINEL PRINCIPAL — vidro elevado ---------- */
+.panel-content {
+  animation: z-fade-in 0.25s ease-out;
+}
+
+/* ---------- PANEL HEADER (dentro dos paineis) ---------- */
+.panel-header {
+  background: linear-gradient(135deg,
+    rgba(42, 21, 84, 0.85) 0%,
+    rgba(30, 17, 66, 0.9) 50%,
+    rgba(42, 21, 84, 0.85) 100%);
+  border: 1px solid rgba(244, 201, 93, 0.28);
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(244, 201, 93, 0.15),
+    inset 0 -1px 0 rgba(168, 85, 247, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.panel-header::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(244, 201, 93, 0.8) 50%,
+    transparent 100%);
+  opacity: 0.8;
+}
+
+.panel-header__icon {
+  filter: drop-shadow(0 0 8px rgba(244, 201, 93, 0.5));
+}
+
+.panel-header__title {
+  background: linear-gradient(135deg, #ffdd7e, #f4c95d 60%, #c084fc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 1.5px;
+}
+
+.panel-header__sub {
+  color: var(--z-text-muted) !important;
+}
+
+/* ---------- BOTOES — gradiente e brilho ---------- */
+.btn {
+  background: linear-gradient(180deg,
+    rgba(60, 30, 110, 0.95) 0%,
+    rgba(40, 20, 80, 0.95) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #e8dcff;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  transition: all 0.18s ease;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    rgba(80, 40, 140, 0.98) 0%,
+    rgba(55, 28, 105, 0.98) 100%);
+  border-color: rgba(192, 132, 252, 0.7);
+  color: #ffffff;
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 14px rgba(168, 85, 247, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.btn--primary {
+  background: linear-gradient(180deg,
+    #ffdd7e 0%,
+    #f4c95d 50%,
+    #d49830 100%);
+  border-color: #ffdd7e;
+  color: #1a0a1a;
+  font-weight: 700;
+  box-shadow:
+    0 3px 12px rgba(244, 201, 93, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -2px 0 rgba(168, 109, 21, 0.5);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    #ffeea3 0%,
+    #ffd670 50%,
+    #e0a840 100%);
+  box-shadow:
+    0 6px 22px rgba(244, 201, 93, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 0 rgba(168, 109, 21, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn--danger {
+  background: linear-gradient(180deg,
+    #c04a5a 0%,
+    #8a2a3a 100%);
+  border-color: #e88090;
+  color: #fff;
+  box-shadow:
+    0 3px 12px rgba(244, 63, 94, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.btn--danger:hover:not(:disabled) {
+  box-shadow:
+    0 6px 20px rgba(244, 63, 94, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+/* ---------- CARDS de item (grelhas) ---------- */
+.item-cell {
+  background: linear-gradient(160deg,
+    rgba(42, 21, 84, 0.85) 0%,
+    rgba(25, 14, 55, 0.95) 100%);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  box-shadow:
+    0 2px 10px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: all 0.18s ease;
+}
+
+.item-cell:hover {
+  transform: translateY(-2px);
+  border-color: rgba(244, 201, 93, 0.6);
+  box-shadow:
+    0 6px 20px rgba(244, 201, 93, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ---------- BARRAS HP / RECURSO / XP com shimmer ---------- */
+.bar__track {
+  background: rgba(8, 4, 22, 0.8) !important;
+  border-radius: 8px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.8), inset 0 -1px 0 rgba(168, 85, 247, 0.15);
+  overflow: hidden;
+  position: relative;
+}
+
+.bar--hp .bar__fill {
+  background: linear-gradient(180deg, #fb7185 0%, #ef4444 50%, #b91c1c 100%) !important;
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  position: relative;
+}
+
+.bar--hp .bar__fill::after,
+.bar--resource .bar__fill::after,
+.bar--enemy .bar__fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.35) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: z-shimmer 2.4s linear infinite;
+  opacity: 0.6;
+}
+
+.bar--resource .bar__fill {
+  background: linear-gradient(180deg, #93c5fd 0%, #3b82f6 50%, #1d4ed8 100%) !important;
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.bar--enemy .bar__fill {
+  background: linear-gradient(180deg, #fb7185 0%, #e11d48 50%, #881337 100%) !important;
+  box-shadow: 0 0 10px rgba(225, 29, 72, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.bar__head {
+  color: var(--z-text-2) !important;
+}
+
+.bar__value {
+  color: #ffdd7e !important;
+  font-weight: 700;
+  text-shadow: 0 0 6px rgba(244, 201, 93, 0.4);
+}
+
+/* ---------- ACTIVITY BANNER (quando ativo) ---------- */
+.activity-banner {
+  background: linear-gradient(135deg,
+    rgba(42, 21, 84, 0.95) 0%,
+    rgba(20, 10, 45, 0.98) 100%);
+  border: 1px solid rgba(244, 201, 93, 0.4);
+  border-radius: 10px;
+  box-shadow:
+    0 4px 24px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(244, 201, 93, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.activity-banner--combat {
+  border-color: rgba(244, 63, 94, 0.5);
+  background: linear-gradient(135deg,
+    rgba(70, 20, 30, 0.6) 0%,
+    rgba(42, 21, 84, 0.9) 100%);
+}
+
+.activity-banner--lifeskill {
+  border-color: rgba(52, 211, 153, 0.5);
+  background: linear-gradient(135deg,
+    rgba(15, 45, 30, 0.5) 0%,
+    rgba(42, 21, 84, 0.9) 100%);
+}
+
+.activity-banner__title {
+  background: linear-gradient(135deg, #ffdd7e, #f4c95d);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.activity-banner__icon {
+  filter: drop-shadow(0 0 10px currentColor);
+  animation: z-glow-purple 3s ease-in-out infinite;
+}
+
+/* ---------- SECTION TITLES dentro dos paineis ---------- */
+.char-section-title,
+.ficha-section,
+.combat-section,
+.life-section,
+.craft-head,
+.idle-section,
+.enh-section,
+.eq-section,
+.dng-section,
+.arena-section,
+.ach-section,
+.quest-tabs + * {
+  color: #ffdd7e !important;
+  text-shadow: 0 0 12px rgba(244, 201, 93, 0.35);
+  letter-spacing: 1.5px;
+}
+
+/* ---------- TAB ATIVA no sidebar — mais viva ---------- */
+.nav-button--active {
+  animation: z-pulse-gold 3s ease-in-out infinite;
+}
+
+/* ---------- MODAIS com glow ---------- */
+.shop-modal__box,
+.arena-modal__box,
+.pvp-modal__box {
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.8),
+    0 0 40px rgba(168, 85, 247, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+/* ---------- TOAST — cores mais chamativas ---------- */
+.toast {
+  background: linear-gradient(135deg,
+    rgba(42, 21, 84, 0.98),
+    rgba(20, 10, 45, 0.98)) !important;
+  border-left: 3px solid #f4c95d !important;
+  box-shadow:
+    0 6px 24px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(244, 201, 93, 0.2) !important;
+  font-weight: 500;
+}
+
+.toast--warn {
+  border-left-color: #fb923c !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(251, 146, 60, 0.25) !important;
+}
+
+.toast--error {
+  border-left-color: #ef4444 !important;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6), 0 0 20px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* ---------- RARIDADE nos items — cores vivas ---------- */
+.item-cell[style*="legendary"] {
+  animation: z-pulse-gold 2.5s ease-in-out infinite;
+}
+
+/* ---------- BUFFS com brilho ---------- */
+.buff-chip {
+  background: linear-gradient(180deg,
+    rgba(60, 30, 110, 0.9),
+    rgba(40, 20, 80, 0.9));
+  border: 1px solid rgba(192, 132, 252, 0.5);
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.15s ease;
+}
+
+.buff-chip:hover {
+  border-color: rgba(244, 201, 93, 0.7);
+  box-shadow: 0 4px 12px rgba(244, 201, 93, 0.3);
+}
+
+/* ---------- TABS internas (arena, quests, etc.) com underline ---------- */
+.arena-subtab--active,
+.quest-tab--active,
+.shop-tab--active,
+.craft-filter--active {
+  position: relative;
+  box-shadow: 0 4px 12px rgba(244, 201, 93, 0.2);
+}
+
+.arena-subtab--active::after,
+.quest-tab--active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 20%;
+  right: 20%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ffdd7e, transparent);
+  border-radius: 2px;
+}
+
+/* ---------- HOVERS UNIVERSAIS SUAVES ---------- */
+.spec-card,
+.arena-card,
+.dng-card,
+.ach-card,
+.pvp-card,
+.prestige-upgrade,
+.prestige-card,
+.quest-card,
+.talent-node {
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.15s ease;
+}
+
+.spec-card:hover,
+.arena-card:hover,
+.dng-card:hover,
+.ach-card:hover,
+.pvp-card:hover,
+.quest-card:hover,
+.talent-node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 20px rgba(168, 85, 247, 0.2);
+}
+
+/* ============================================================
+   FASE 10 — BLOCO C
+   Overhaul vibrante: paleta mais clara, animacoes ambiente,
+   glows, gradientes moveis. Sobe o contraste geral.
+   ============================================================ */
+
+/* ---------- PALETA MAIS VIVA ---------- */
+:root {
+  /* Fundos mais claros e coloridos */
+  --v-bg-1:      #0d0620;
+  --v-bg-2:      #1a0a3e;
+  --v-bg-3:      #25124d;
+  --v-surface:   #2a1558;
+  --v-surface-2: #351a6b;
+  --v-card:      #211345;
+  --v-card-hi:   #2d1a5c;
+
+  /* Dourado brilhante (protagonista) */
+  --v-gold:      #ffd66b;
+  --v-gold-hi:   #fff3c4;
+  --v-gold-lo:   #c99420;
+
+  /* Roxo electrico */
+  --v-violet:    #b366ff;
+  --v-violet-hi: #d9a3ff;
+
+  /* Acentos vibrantes */
+  --v-cyan:      #38e1ff;
+  --v-magenta:   #ff5fe0;
+  --v-lime:      #a3ff5e;
+  --v-orange:    #ff8a3d;
+  --v-rose:      #ff4d7a;
+  --v-blue:      #4da7ff;
+
+  /* Texto mais claro */
+  --v-text:      #ffffff;
+  --v-text-2:    #e0d0ff;
+  --v-text-3:    #b39de0;
+  --v-text-mute: #8a75c0;
+}
+
+/* ---------- FUNDO GLOBAL ANIMADO ---------- */
+body {
+  background:
+    radial-gradient(ellipse 80% 50% at 15% 0%, rgba(179, 102, 255, 0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 60% at 85% 20%, rgba(56, 225, 255, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 90% 60% at 50% 100%, rgba(255, 95, 224, 0.14) 0%, transparent 60%),
+    linear-gradient(160deg, #150830 0%, #0d0620 40%, #1a0a3e 100%) !important;
+  background-attachment: fixed !important;
+  animation: v-bg-shift 24s ease-in-out infinite;
+}
+
+@keyframes v-bg-shift {
+  0%, 100% { background-position: 0% 0%, 100% 20%, 50% 100%, 0 0; }
+  50%      { background-position: 20% 10%, 80% 30%, 40% 90%, 0 0; }
+}
+
+/* ---------- HEADER mais imponente ---------- */
+#game-header {
+  background:
+    linear-gradient(180deg, rgba(45, 26, 92, 0.98), rgba(26, 10, 62, 0.98)) !important;
+  border-bottom: 2px solid transparent;
+  background-image:
+    linear-gradient(180deg, rgba(45, 26, 92, 0.98), rgba(26, 10, 62, 0.98)),
+    linear-gradient(90deg, #ffd66b 0%, #b366ff 50%, #38e1ff 100%) !important;
+  background-origin: border-box !important;
+  background-clip: padding-box, border-box !important;
+  box-shadow:
+    0 4px 32px rgba(179, 102, 255, 0.35),
+    0 1px 0 rgba(255, 214, 107, 0.4) inset,
+    0 -1px 0 rgba(56, 225, 255, 0.2) inset !important;
+}
+
+.header-brand h1 {
+  background: linear-gradient(135deg, #fff3c4 0%, #ffd66b 40%, #ff5fe0 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(0 0 16px rgba(255, 214, 107, 0.6));
+  letter-spacing: 3px !important;
+}
+
+/* ---------- SIDEBAR mais luminosa ---------- */
+#tab-nav {
+  background: linear-gradient(180deg, rgba(37, 18, 77, 0.96), rgba(13, 6, 32, 0.98)) !important;
+  border-right: 1px solid rgba(179, 102, 255, 0.35) !important;
+  box-shadow: 4px 0 32px rgba(179, 102, 255, 0.15) !important;
+}
+
+.nav-group__label {
+  color: #b39de0 !important;
+  text-shadow: 0 0 12px rgba(179, 102, 255, 0.5);
+  font-weight: 800 !important;
+}
+
+.nav-button {
+  color: #d9c8ff !important;
+  border: 1px solid transparent !important;
+}
+
+.nav-button:hover {
+  background: linear-gradient(90deg, rgba(179, 102, 255, 0.25), rgba(179, 102, 255, 0.05)) !important;
+  color: #fff !important;
+  border-color: rgba(179, 102, 255, 0.4) !important;
+  transform: translateX(3px);
+  box-shadow: 0 0 20px rgba(179, 102, 255, 0.3) !important;
+}
+
+.nav-button--active {
+  background: linear-gradient(90deg, rgba(255, 214, 107, 0.28), rgba(255, 95, 224, 0.08)) !important;
+  color: #fff3c4 !important;
+  border-color: rgba(255, 214, 107, 0.7) !important;
+  box-shadow:
+    0 0 24px rgba(255, 214, 107, 0.45),
+    inset 0 0 16px rgba(255, 214, 107, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  animation: v-tab-glow 3s ease-in-out infinite;
+}
+
+@keyframes v-tab-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(255, 214, 107, 0.35), inset 0 0 14px rgba(255, 214, 107, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15); }
+  50%      { box-shadow: 0 0 32px rgba(255, 214, 107, 0.65), inset 0 0 20px rgba(255, 214, 107, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2); }
+}
+
+.nav-button--active::before {
+  background: linear-gradient(180deg, #fff3c4, #ffd66b, #ff5fe0) !important;
+  box-shadow: 0 0 16px rgba(255, 214, 107, 0.9) !important;
+  width: 3px !important;
+}
+
+/* ---------- PANEL HEADER com profundidade ---------- */
+.panel-header {
+  background: linear-gradient(135deg,
+    rgba(53, 26, 107, 0.9) 0%,
+    rgba(42, 21, 88, 0.95) 50%,
+    rgba(53, 26, 107, 0.9) 100%) !important;
+  border: 1px solid rgba(255, 214, 107, 0.5) !important;
+  box-shadow:
+    0 6px 28px rgba(0, 0, 0, 0.5),
+    0 0 30px rgba(179, 102, 255, 0.2),
+    inset 0 1px 0 rgba(255, 214, 107, 0.35),
+    inset 0 -1px 0 rgba(56, 225, 255, 0.15) !important;
+}
+
+.panel-header::before {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    #ffd66b 20%,
+    #ff5fe0 50%,
+    #38e1ff 80%,
+    transparent 100%) !important;
+  height: 3px !important;
+  animation: v-header-line 6s linear infinite;
+  background-size: 200% 100% !important;
+}
+
+@keyframes v-header-line {
+  0%   { background-position: 0% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.panel-header__title {
+  background: linear-gradient(135deg, #fff3c4, #ffd66b 50%, #b366ff) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(0 0 8px rgba(255, 214, 107, 0.5));
+  font-weight: 800 !important;
+}
+
+.panel-header__icon {
+  color: #ffd66b !important;
+  filter: drop-shadow(0 0 12px rgba(255, 214, 107, 0.9)) !important;
+  animation: v-icon-breathe 3s ease-in-out infinite;
+}
+
+@keyframes v-icon-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+
+/* ---------- BOTOES muito mais vivos ---------- */
+.btn {
+  background: linear-gradient(180deg,
+    rgba(80, 40, 150, 0.95) 0%,
+    rgba(60, 30, 120, 0.95) 100%) !important;
+  border: 1px solid rgba(179, 102, 255, 0.6) !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  box-shadow:
+    0 3px 12px rgba(0, 0, 0, 0.4),
+    0 0 12px rgba(179, 102, 255, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  text-shadow: 0 0 6px rgba(179, 102, 255, 0.6);
+}
+
+.btn:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    rgba(120, 60, 200, 0.98) 0%,
+    rgba(90, 45, 170, 0.98) 100%) !important;
+  border-color: rgba(217, 163, 255, 0.9) !important;
+  box-shadow:
+    0 6px 20px rgba(179, 102, 255, 0.6),
+    0 0 30px rgba(179, 102, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  transform: translateY(-2px) scale(1.02);
+}
+
+.btn--primary {
+  background: linear-gradient(180deg,
+    #fff3c4 0%,
+    #ffd66b 45%,
+    #e8b844 100%) !important;
+  border-color: #fff3c4 !important;
+  color: #1a0a1a !important;
+  font-weight: 800 !important;
+  box-shadow:
+    0 4px 16px rgba(255, 214, 107, 0.55),
+    0 0 24px rgba(255, 214, 107, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 0 rgba(160, 100, 20, 0.5) !important;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.5) !important;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    #fff9dd 0%,
+    #ffe480 45%,
+    #f0c550 100%) !important;
+  box-shadow:
+    0 8px 28px rgba(255, 214, 107, 0.8),
+    0 0 40px rgba(255, 214, 107, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 0 rgba(160, 100, 20, 0.6) !important;
+  transform: translateY(-2px) scale(1.03);
+}
+
+.btn--danger {
+  background: linear-gradient(180deg,
+    #ff5c7a 0%,
+    #d62d52 100%) !important;
+  border-color: #ff8fa5 !important;
+  color: #fff !important;
+  box-shadow:
+    0 4px 16px rgba(255, 77, 122, 0.5),
+    0 0 20px rgba(255, 77, 122, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+.btn--danger:hover:not(:disabled) {
+  box-shadow:
+    0 8px 28px rgba(255, 77, 122, 0.75),
+    0 0 40px rgba(255, 77, 122, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35) !important;
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* ---------- CARDS com hover vivo ---------- */
+.item-cell, .spec-card, .arena-card, .dng-card, .ach-card, .pvp-card,
+.quest-card, .talent-node, .life-prof, .life-node, .char-attr-card,
+.ficha-attr-card, .shop-card, .char-power-card, .ficha-power-card {
+  background: linear-gradient(160deg,
+    rgba(45, 26, 92, 0.9) 0%,
+    rgba(30, 15, 65, 0.95) 100%) !important;
+  border: 1px solid rgba(179, 102, 255, 0.35) !important;
+  box-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.item-cell:hover, .spec-card:hover, .arena-card:hover, .dng-card:hover,
+.ach-card:hover, .pvp-card:hover, .quest-card:hover, .talent-node:hover,
+.life-prof:hover, .life-node:hover, .char-attr-card:hover,
+.ficha-attr-card:hover, .shop-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: rgba(255, 214, 107, 0.7) !important;
+  box-shadow:
+    0 10px 32px rgba(0, 0, 0, 0.55),
+    0 0 30px rgba(255, 214, 107, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* ---------- BARRAS ultra vivas com shimmer e glow ---------- */
+.bar__track {
+  background: rgba(13, 6, 32, 0.9) !important;
+  box-shadow:
+    inset 0 3px 8px rgba(0, 0, 0, 0.9),
+    inset 0 -1px 0 rgba(179, 102, 255, 0.25),
+    0 0 12px rgba(0, 0, 0, 0.5) !important;
+}
+
+.bar--hp .bar__fill {
+  background: linear-gradient(180deg,
+    #ff8fa5 0%,
+    #ff4d7a 30%,
+    #e11d48 70%,
+    #881337 100%) !important;
+  box-shadow:
+    0 0 20px rgba(255, 77, 122, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.3) !important;
+}
+
+.bar--resource .bar__fill {
+  background: linear-gradient(180deg,
+    #9dd0ff 0%,
+    #4da7ff 30%,
+    #3b82f6 70%,
+    #1d4ed8 100%) !important;
+  box-shadow:
+    0 0 20px rgba(77, 167, 255, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+.bar--enemy .bar__fill {
+  background: linear-gradient(180deg,
+    #ffb090 0%,
+    #ff8a3d 30%,
+    #e11d48 70%,
+    #881337 100%) !important;
+  box-shadow:
+    0 0 20px rgba(255, 138, 61, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+.bar--hp .bar__fill::after,
+.bar--resource .bar__fill::after,
+.bar--enemy .bar__fill::after {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.6) 50%,
+    transparent 100%) !important;
+  background-size: 200% 100% !important;
+  animation: v-shimmer 1.8s linear infinite !important;
+  opacity: 0.85 !important;
+}
+
+@keyframes v-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ---------- ACTIVITY BANNER mais impactante ---------- */
+.activity-banner {
+  background: linear-gradient(135deg,
+    rgba(53, 26, 107, 0.98) 0%,
+    rgba(30, 15, 65, 0.98) 100%) !important;
+  border: 2px solid rgba(255, 214, 107, 0.6) !important;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(255, 214, 107, 0.25),
+    inset 0 1px 0 rgba(255, 214, 107, 0.3) !important;
+}
+
+.activity-banner--combat {
+  border-color: rgba(255, 77, 122, 0.8) !important;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.6),
+    0 0 50px rgba(255, 77, 122, 0.4),
+    inset 0 1px 0 rgba(255, 214, 107, 0.3) !important;
+}
+
+.activity-banner--lifeskill {
+  border-color: rgba(163, 255, 94, 0.7) !important;
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, 0.6),
+    0 0 50px rgba(163, 255, 94, 0.35),
+    inset 0 1px 0 rgba(163, 255, 94, 0.3) !important;
+}
+
+.activity-banner__icon {
+  filter: drop-shadow(0 0 16px currentColor) !important;
+  animation: v-icon-pulse 2.5s ease-in-out infinite !important;
+}
+
+@keyframes v-icon-pulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px currentColor); }
+  50%      { transform: scale(1.12); filter: drop-shadow(0 0 22px currentColor); }
+}
+
+/* ---------- RESOURCE BAR no header vibrante ---------- */
+.resource-bar__item {
+  background: linear-gradient(180deg,
+    rgba(60, 30, 120, 0.95) 0%,
+    rgba(45, 22, 95, 0.95) 100%) !important;
+  border: 1px solid rgba(255, 214, 107, 0.4) !important;
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.5),
+    0 0 16px rgba(255, 214, 107, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.resource-bar__value {
+  color: #fff3c4 !important;
+  font-weight: 800 !important;
+  text-shadow: 0 0 12px rgba(255, 214, 107, 0.7) !important;
+}
+
+/* ---------- SECTION TITLES DOURADAS ---------- */
+.char-section-title, .ficha-section, .combat-section, .life-section,
+.craft-head, .idle-section, .enh-section, .eq-section, .dng-section,
+.arena-section, .ach-section, .prestige-section, .rankings-section,
+.pvp-section, .best-section, .spec-section, .talents-branch__head {
+  color: #fff3c4 !important;
+  text-shadow: 0 0 16px rgba(255, 214, 107, 0.5) !important;
+  letter-spacing: 2px !important;
+  font-weight: 800 !important;
+}
+
+/* ---------- TOASTS com cor de lado ---------- */
+.toast {
+  background: linear-gradient(135deg,
+    rgba(53, 26, 107, 0.98),
+    rgba(30, 15, 65, 0.98)) !important;
+  border-left: 4px solid #ffd66b !important;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 0 24px rgba(255, 214, 107, 0.3) !important;
+  font-weight: 600 !important;
+}
+
+.toast--warn {
+  border-left-color: #ff8a3d !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(255, 138, 61, 0.35) !important;
+}
+
+.toast--error {
+  border-left-color: #ff4d7a !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 24px rgba(255, 77, 122, 0.4) !important;
+}
+
+/* ---------- TABS INTERNAS com underline brilhante ---------- */
+.arena-subtab--active, .quest-tab--active, .shop-tab--active {
+  background: linear-gradient(180deg,
+    rgba(255, 214, 107, 0.22),
+    rgba(179, 102, 255, 0.08)) !important;
+  color: #fff3c4 !important;
+  border-color: rgba(255, 214, 107, 0.7) !important;
+  box-shadow:
+    0 4px 16px rgba(255, 214, 107, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* ---------- BUFFS vibrantes ---------- */
+.buff-chip {
+  background: linear-gradient(180deg,
+    rgba(80, 40, 160, 0.95),
+    rgba(60, 30, 120, 0.95)) !important;
+  border: 1px solid rgba(217, 163, 255, 0.6) !important;
+  box-shadow:
+    0 3px 12px rgba(0, 0, 0, 0.5),
+    0 0 16px rgba(179, 102, 255, 0.3) !important;
+  color: #fff !important;
+}
+
+/* ---------- SCROLLBAR viva ---------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(13, 6, 32, 0.7); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #b366ff 0%, #ffd66b 50%, #ff5fe0 100%);
+  border-radius: 6px;
+  box-shadow: 0 0 12px rgba(179, 102, 255, 0.6);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #d9a3ff 0%, #fff3c4 50%, #ff8fe8 100%);
+}
+
+/* ---------- PARTICULAS AMBIENTE (decorativo) ---------- */
+#game-main::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(2px 2px at 20% 30%, rgba(255, 214, 107, 0.4) 0%, transparent 100%),
+    radial-gradient(2px 2px at 60% 70%, rgba(179, 102, 255, 0.35) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 80% 20%, rgba(56, 225, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(2px 2px at 40% 80%, rgba(255, 95, 224, 0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 90% 60%, rgba(255, 214, 107, 0.35) 0%, transparent 100%),
+    radial-gradient(2px 2px at 10% 60%, rgba(179, 102, 255, 0.3) 0%, transparent 100%);
+  background-size: 100% 100%;
+  animation: v-particles 40s linear infinite;
+  z-index: 0;
+  opacity: 0.7;
+}
+
+@keyframes v-particles {
+  0%   { transform: translate(0, 0); opacity: 0.5; }
+  50%  { transform: translate(20px, -30px); opacity: 0.8; }
+  100% { transform: translate(-10px, -60px); opacity: 0.4; }
+}
+
+/* ---------- MODAIS GLOW ---------- */
+.shop-modal__box, .arena-modal__box, .pvp-modal__box {
+  box-shadow:
+    0 24px 80px rgba(0, 0, 0, 0.85),
+    0 0 60px rgba(179, 102, 255, 0.5),
+    0 0 120px rgba(255, 214, 107, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+/* ---------- HOVERS UNIVERSAIS com escala ---------- */
+.spec-card, .arena-card, .dng-card, .ach-card, .pvp-card,
+.quest-card, .talent-node, .item-cell {
+  will-change: transform;
+}
+
+/* ---------- LOGO/BRAND pulse ---------- */
+.header-brand h1 {
+  animation: v-logo-glow 5s ease-in-out infinite;
+}
+
+@keyframes v-logo-glow {
+  0%, 100% { filter: drop-shadow(0 0 16px rgba(255, 214, 107, 0.5)); }
+  50%      { filter: drop-shadow(0 0 28px rgba(255, 214, 107, 0.85)) drop-shadow(0 0 12px rgba(255, 95, 224, 0.4)); }
+}
+
+/* ============================================================
+   FASE 10 — BLOCO D
+   Contencao + design system. Remove ruido, adiciona disciplina.
+   ============================================================ */
+
+/* ---------- 1) REMOVER RUIDO do Bloco C ---------- */
+#game-main::before { animation: none !important; opacity: 0 !important; }
+body { animation: none !important; }
+.header-brand h1 { animation: none !important; }
+
+/* ---------- 2) DESIGN SYSTEM — tokens ---------- */
+:root {
+  /* Espacamento (escala de 4px) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* Tipografia */
+  --fs-xs:  11px;
+  --fs-sm:  12px;
+  --fs-md:  14px;
+  --fs-lg:  16px;
+  --fs-xl:  20px;
+
+  /* Profundidade (3 niveis de sombra) */
+  --shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-3: 0 12px 32px rgba(0, 0, 0, 0.6), 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  /* Radii consistentes */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* Transicao unica */
+  --transition: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ---------- 3) ANIMACOES — so as 3 que ajudam ---------- */
+@keyframes v-shimmer-only {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes v-tab-breathe {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 214, 107, 0.25), inset 0 0 10px rgba(255, 214, 107, 0.08); }
+  50%      { box-shadow: 0 0 22px rgba(255, 214, 107, 0.45), inset 0 0 14px rgba(255, 214, 107, 0.14); }
+}
+
+/* Bar shimmer — mantido, ligeiramente mais discreto */
+.bar--hp .bar__fill::after,
+.bar--resource .bar__fill::after,
+.bar--enemy .bar__fill::after {
+  animation: v-shimmer-only 2.4s linear infinite !important;
+  opacity: 0.55 !important;
+}
+
+/* Tab activa — pulse mais subtil */
+.nav-button--active {
+  animation: v-tab-breathe 4s ease-in-out infinite !important;
+}
+
+/* Remover pulsos restantes */
+.panel-header__icon,
+.activity-banner__icon,
+.nav-button--active::before {
+  animation: none !important;
+}
+
+/* ---------- 4) CARD SYSTEM unificado ---------- */
+
+/* Cards elevados (destaque) — ranking, dungeons, arena */
+.rankings-row,
+.arena-card,
+.dng-card,
+.spec-card,
+.pvp-card,
+.talent-node,
+.ach-card,
+.quest-card {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-2) !important;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition) !important;
+}
+
+.rankings-row:hover,
+.arena-card:hover,
+.dng-card:hover,
+.spec-card:hover,
+.pvp-card:hover,
+.talent-node:hover,
+.ach-card:hover,
+.quest-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-3) !important;
+}
+
+/* ---------- 5) CARD DE PODIUM (o #1, #2, #3 nos rankings) ---------- */
+
+/* O container dos 3 primeiros */
+.rankings-podium {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+}
+
+/* Cada card do podium */
+.rankings-podium__card {
+  position: relative;
+  padding: var(--sp-5) var(--sp-4) var(--sp-4) !important;
+  border-radius: var(--radius-lg) !important;
+  background: linear-gradient(180deg, rgba(40, 22, 88, 0.9), rgba(20, 10, 45, 0.95)) !important;
+  border: 2px solid rgba(179, 102, 255, 0.3) !important;
+  box-shadow: var(--shadow-3) !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 200px;
+}
+
+/* Linha de luz no topo do card (destaque) */
+.rankings-podium__card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.9;
+}
+
+/* Card #1 — ouro */
+.rankings-podium__card--1 {
+  border-color: rgba(255, 214, 107, 0.7) !important;
+  color: #ffd66b;
+  background: linear-gradient(180deg, rgba(80, 50, 20, 0.5), rgba(30, 15, 45, 0.95)) !important;
+  box-shadow:
+    var(--shadow-3),
+    0 0 40px rgba(255, 214, 107, 0.3),
+    inset 0 0 60px rgba(255, 214, 107, 0.08) !important;
+}
+
+/* Card #2 — prata */
+.rankings-podium__card--2 {
+  border-color: rgba(192, 192, 208, 0.6) !important;
+  color: #c8c8d8;
+}
+
+/* Card #3 — bronze */
+.rankings-podium__card--3 {
+  border-color: rgba(205, 127, 50, 0.6) !important;
+  color: #cd7f32;
+}
+
+/* Medalhao com numero */
+.rankings-podium__medal {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: var(--fs-lg);
+  background: currentColor;
+  color: #1a0a1a;
+  box-shadow:
+    0 0 20px currentColor,
+    inset 0 2px 4px rgba(255, 255, 255, 0.4),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.2);
+  margin-bottom: var(--sp-2);
+}
+
+.rankings-podium__card--1 .rankings-podium__medal { background: linear-gradient(180deg, #fff3c4, #ffd66b); }
+.rankings-podium__card--2 .rankings-podium__medal { background: linear-gradient(180deg, #f0f0f8, #a8a8b8); }
+.rankings-podium__card--3 .rankings-podium__medal { background: linear-gradient(180deg, #e8a870, #a86530); }
+
+/* Nome do jogador */
+.rankings-podium__name {
+  font-size: var(--fs-lg) !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  text-align: center;
+  letter-spacing: 0.3px;
+}
+
+/* Liga/tier */
+.rankings-podium__tier {
+  font-size: var(--fs-xs) !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Valor (pontos) */
+.rankings-podium__rating {
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  background: linear-gradient(180deg, #fff3c4, #ffd66b);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 1px;
+  margin-top: var(--sp-2);
+  filter: drop-shadow(0 0 8px rgba(255, 214, 107, 0.5));
+}
+
+/* ---------- 6) SEASON PILL (a "Temporada 10") ---------- */
+/* Elemento com o nome da temporada — aparece no topo dos rankings */
+
+.rankings-season,
+.rankings-content > div:first-child {
+  padding: var(--sp-3) var(--sp-4) !important;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(56, 225, 255, 0.12), rgba(56, 225, 255, 0.04));
+  border: 1px solid rgba(56, 225, 255, 0.4);
+  box-shadow: 0 0 20px rgba(56, 225, 255, 0.15);
+}
+
+.rankings-season__name,
+.rankings-content h3 {
+  color: #38e1ff !important;
+  text-shadow: 0 0 10px rgba(56, 225, 255, 0.6);
+  font-weight: 700;
+}
+
+/* ---------- 7) FOCUS STATES (acessibilidade) ---------- */
+button:focus-visible,
+.nav-button:focus-visible,
+.btn:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #ffd66b;
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* ---------- 8) TYPOGRAPHY HIERARCHY ---------- */
+h1, h2, h3, h4 { margin: 0; }
+
+h1 { font-size: 22px; letter-spacing: 2px; font-weight: 700; }
+h2 { font-size: 18px; letter-spacing: 1px; font-weight: 700; }
+h3 { font-size: 15px; letter-spacing: 0.5px; font-weight: 600; }
+
+/* ---------- 9) BOTOES — estados uniformes ---------- */
+.btn {
+  border-radius: var(--radius-md) !important;
+  transition: all var(--transition) !important;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #ffd66b;
+  outline-offset: 2px;
+}
+
+.btn:disabled,
+.btn[disabled] {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.5) !important;
+  transform: none !important;
+  box-shadow: var(--shadow-1) !important;
+}
+
+/* ---------- 10) LISTA DE RANKINGS — linhas mais discretas ---------- */
+.rankings-row {
+  padding: var(--sp-2) var(--sp-3) !important;
+  border-radius: var(--radius-sm) !important;
+  transition: background var(--transition) !important;
+}
+
+.rankings-row:hover {
+  background: rgba(179, 102, 255, 0.08) !important;
+}
+
+.rankings-row--me {
+  background: linear-gradient(90deg, rgba(255, 214, 107, 0.15), rgba(179, 102, 255, 0.05)) !important;
+  border-left: 3px solid #ffd66b !important;
+  box-shadow: 0 0 12px rgba(255, 214, 107, 0.15) inset !important;
+}
+
+/* ---------- 11) SUB-TABS (Contra IA / Contra Jogadores / Rankings) ---------- */
+/* As pills com icone + texto, activa com borda dourada */
+
+.arena-subtab {
+  padding: var(--sp-2) var(--sp-4) !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid rgba(179, 102, 255, 0.3) !important;
+  background: rgba(20, 10, 45, 0.5) !important;
+  color: #c8b8e0 !important;
+  font-size: var(--fs-md) !important;
+  font-weight: 600 !important;
+  transition: all var(--transition) !important;
+}
+
+.arena-subtab:hover {
+  border-color: rgba(179, 102, 255, 0.6) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px);
+}
+
+.arena-subtab--active {
+  background: linear-gradient(180deg, rgba(255, 214, 107, 0.18), rgba(179, 102, 255, 0.08)) !important;
+  border-color: #ffd66b !important;
+  color: #ffd66b !important;
+  box-shadow:
+    0 0 16px rgba(255, 214, 107, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ---------- 12) EMPTY STATES — elegantes ---------- */
+.rankings-empty,
+.pvp-empty,
+.dng-empty,
+.ach-empty {
+  padding: var(--sp-6) !important;
+  text-align: center;
+  color: var(--v-text-mute) !important;
+  font-style: italic;
+  font-size: var(--fs-md);
+  border: 1px dashed rgba(179, 102, 255, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(20, 10, 45, 0.3);
+}
+
+/* ---------- 13) TRANSICOES GLOBAIS SUAVES ---------- */
+.panel-content *,
+.nav-button,
+.btn,
+.item-cell {
+  transition-duration: 0.15s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============================================================
+   ZERK IDLE — THEME "TWILIGHT FANTASY"
+   Redesign completo. Equilibrado, profissional, sem imagens.
+   Este bloco sobrepoe-se a todos os temas anteriores.
+   ============================================================ */
+
+/* ---------- DESIGN TOKENS ---------- */
+:root {
+  /* Superficies em camadas (indigo profundo, nao preto) */
+  --t-bg:        #1a1d29;
+  --t-bg-2:      #20242f;
+  --t-surface:   #252938;
+  --t-surface-2: #2c3143;
+  --t-elevated:  #333850;
+  --t-card:      #282d3d;
+  --t-card-hi:   #343a52;
+
+  /* Dourado quente (cor principal) */
+  --t-gold:      #e8b860;
+  --t-gold-hi:   #f5d189;
+  --t-gold-lo:   #b88838;
+  --t-gold-bg:   rgba(232, 184, 96, 0.12);
+
+  /* Roxo suave (cor secundaria) */
+  --t-purple:    #7a5fc7;
+  --t-purple-hi: #9b82e0;
+  --t-purple-bg: rgba(122, 95, 199, 0.15);
+
+  /* Estado */
+  --t-hp:        #e05c5c;
+  --t-hp-lo:     #a83c3c;
+  --t-resource:  #5a9ee0;
+  --t-resource-lo: #3d7ac2;
+  --t-xp:        #9d7ddc;
+  --t-silver:    #e8b860;
+
+  /* Semantica */
+  --t-success:   #5cc280;
+  --t-warning:   #e89a5c;
+  --t-danger:    #e05c5c;
+  --t-info:      #5aa8c2;
+
+  /* Texto */
+  --t-text:      #f0ebe0;
+  --t-text-2:    #b8b2a8;
+  --t-text-3:    #8a857a;
+  --t-text-mute: #6a655c;
+
+  /* Bordas */
+  --t-border:      1px solid rgba(232, 184, 96, 0.18);
+  --t-border-soft: 1px solid rgba(200, 200, 220, 0.10);
+  --t-border-hi:   1px solid rgba(232, 184, 96, 0.45);
+
+  /* Espacamento */
+  --t-sp-1: 4px;
+  --t-sp-2: 8px;
+  --t-sp-3: 12px;
+  --t-sp-4: 16px;
+  --t-sp-5: 24px;
+  --t-sp-6: 32px;
+
+  /* Tipografia */
+  --t-fs-xs: 11px;
+  --t-fs-sm: 12px;
+  --t-fs-md: 13px;
+  --t-fs-lg: 15px;
+  --t-fs-xl: 18px;
+  --t-fs-2xl: 24px;
+
+  /* Profundidade */
+  --t-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --t-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --t-shadow-3: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* Radii */
+  --t-r-sm: 6px;
+  --t-r-md: 10px;
+  --t-r-lg: 14px;
+
+  /* Transicao */
+  --t-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --t-dur: 0.18s;
+  --t-transition: all var(--t-dur) var(--t-ease);
+}
+
+/* ---------- 1) FUNDO GLOBAL ---------- */
+body {
+  background:
+    radial-gradient(ellipse 1200px 800px at 20% -10%, rgba(122, 95, 199, 0.10), transparent 60%),
+    radial-gradient(ellipse 1000px 600px at 90% 110%, rgba(232, 184, 96, 0.06), transparent 60%),
+    linear-gradient(180deg, #1a1d29 0%, #15171f 100%) !important;
+  background-attachment: fixed !important;
+  color: var(--t-text) !important;
+  font-size: var(--t-fs-md);
+  line-height: 1.5;
+  animation: none !important;
+}
+
+/* Remove particulas e animacoes de fundo dos blocos anteriores */
+#game-main::before { display: none !important; }
+
+/* ---------- 2) HEADER ---------- */
+#game-header {
+  background: linear-gradient(180deg,
+    rgba(37, 41, 56, 0.98) 0%,
+    rgba(26, 29, 41, 0.98) 100%) !important;
+  border-bottom: 1px solid rgba(232, 184, 96, 0.22) !important;
+  box-shadow:
+    0 1px 0 rgba(232, 184, 96, 0.08) inset,
+    0 4px 16px rgba(0, 0, 0, 0.3) !important;
+  padding: var(--t-sp-3) var(--t-sp-4);
+  background-image: none !important;
+}
+
+.header-brand h1 {
+  background: linear-gradient(135deg, #f5d189 0%, #e8b860 60%, #b88838 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: drop-shadow(0 0 12px rgba(232, 184, 96, 0.35)) !important;
+  animation: none !important;
+  font-size: var(--t-fs-2xl) !important;
+  letter-spacing: 2px !important;
+  font-weight: 700 !important;
+}
+
+#game-version {
+  color: var(--t-text-3) !important;
+  font-size: var(--t-fs-xs) !important;
+  font-style: italic;
+}
+
+/* ---------- 3) RESOURCE BAR (prata/nivel/xp) ---------- */
+.resource-bar__item {
+  background: linear-gradient(180deg,
+    rgba(44, 49, 67, 0.9) 0%,
+    rgba(37, 41, 56, 0.9) 100%) !important;
+  border: 1px solid rgba(232, 184, 96, 0.22) !important;
+  border-radius: var(--t-r-md) !important;
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  transition: var(--t-transition) !important;
+  padding: var(--t-sp-2) var(--t-sp-3) !important;
+}
+
+.resource-bar__item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(232, 184, 96, 0.45) !important;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.4),
+    0 0 16px rgba(232, 184, 96, 0.15) !important;
+}
+
+.resource-bar__label {
+  color: var(--t-text-3) !important;
+  font-size: var(--t-fs-xs) !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase;
+}
+
+.resource-bar__value {
+  color: var(--t-gold-hi) !important;
+  font-weight: 700 !important;
+  font-size: var(--t-fs-lg) !important;
+  text-shadow: none !important;
+}
+
+/* ---------- 4) SIDEBAR ---------- */
+#tab-nav {
+  background: linear-gradient(180deg,
+    rgba(32, 36, 47, 0.98) 0%,
+    rgba(20, 23, 31, 0.98) 100%) !important;
+  border-right: 1px solid rgba(200, 200, 220, 0.08) !important;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.nav-group__label {
+  color: var(--t-text-3) !important;
+  font-size: var(--t-fs-xs) !important;
+  letter-spacing: 1.5px !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+  padding: var(--t-sp-3) var(--t-sp-3) var(--t-sp-1) !important;
+}
+
+.nav-button {
+  color: var(--t-text-2) !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--t-r-sm) !important;
+  padding: var(--t-sp-2) var(--t-sp-3) !important;
+  font-size: var(--t-fs-md) !important;
+  font-weight: 500 !important;
+  transition: var(--t-transition) !important;
+  text-shadow: none !important;
+}
+
+.nav-button:hover {
+  background: rgba(232, 184, 96, 0.06) !important;
+  border-color: rgba(232, 184, 96, 0.18) !important;
+  color: var(--t-text) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.nav-button--active {
+  background: linear-gradient(90deg,
+    rgba(232, 184, 96, 0.14) 0%,
+    rgba(232, 184, 96, 0.04) 100%) !important;
+  color: var(--t-gold-hi) !important;
+  border-color: rgba(232, 184, 96, 0.35) !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.nav-button--active::before {
+  content: '' !important;
+  background: var(--t-gold) !important;
+  width: 3px !important;
+  left: 0 !important;
+  top: 25% !important;
+  bottom: 25% !important;
+  border-radius: 0 2px 2px 0 !important;
+  box-shadow: 0 0 8px rgba(232, 184, 96, 0.5) !important;
+  animation: none !important;
+}
+
+.nav-button__icon {
+  color: currentColor !important;
+  opacity: 0.85;
+}
+
+.nav-button--active .nav-button__icon {
+  color: var(--t-gold-hi) !important;
+  opacity: 1;
+}
+
+/* ---------- 5) MAIN CONTENT ---------- */
+#game-main {
+  background: transparent !important;
+  padding: var(--t-sp-4) !important;
+}
+
+/* ---------- 6) PANEL HEADER (dentro dos paineis) ---------- */
+.panel-header {
+  background: linear-gradient(180deg,
+    rgba(44, 49, 67, 0.6) 0%,
+    rgba(37, 41, 56, 0.4) 100%) !important;
+  border: 1px solid rgba(200, 200, 220, 0.10) !important;
+  border-radius: var(--t-r-md) !important;
+  box-shadow: var(--t-shadow-1) !important;
+  padding: var(--t-sp-4) var(--t-sp-4) !important;
+  margin-bottom: var(--t-sp-3) !important;
+}
+
+.panel-header::before {
+  display: none !important;
+}
+
+.panel-header__icon {
+  color: var(--t-gold) !important;
+  filter: none !important;
+  animation: none !important;
+}
+
+.panel-header__title {
+  background: none !important;
+  -webkit-text-fill-color: var(--t-text) !important;
+  color: var(--t-text) !important;
+  font-size: var(--t-fs-xl) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  filter: none !important;
+}
+
+.panel-header__sub {
+  color: var(--t-text-3) !important;
+  font-size: var(--t-fs-sm) !important;
+  font-style: italic;
+}
+
+/* ---------- 7) BOTOES ---------- */
+.btn {
+  background: linear-gradient(180deg,
+    rgba(60, 66, 88, 0.9) 0%,
+    rgba(44, 49, 67, 0.95) 100%) !important;
+  border: 1px solid rgba(200, 200, 220, 0.15) !important;
+  border-radius: var(--t-r-sm) !important;
+  color: var(--t-text) !important;
+  font-size: var(--t-fs-md) !important;
+  font-weight: 600 !important;
+  padding: var(--t-sp-2) var(--t-sp-3) !important;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  transition: var(--t-transition) !important;
+  text-shadow: none !important;
+}
+
+.btn:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    rgba(72, 80, 106, 0.95) 0%,
+    rgba(56, 62, 84, 0.95) 100%) !important;
+  border-color: rgba(232, 184, 96, 0.4) !important;
+  color: var(--t-gold-hi) !important;
+  transform: translateY(-1px);
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(232, 184, 96, 0.15) !important;
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4) !important;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg,
+    #e8b860 0%,
+    #c99a45 100%) !important;
+  border-color: #f5d189 !important;
+  color: #2a1f0a !important;
+  font-weight: 700 !important;
+  box-shadow:
+    0 2px 8px rgba(232, 184, 96, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    #f5d189 0%,
+    #e8b860 100%) !important;
+  transform: translateY(-1px);
+  box-shadow:
+    0 4px 14px rgba(232, 184, 96, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45) !important;
+}
+
+.btn--danger {
+  background: linear-gradient(180deg,
+    #c94a4a 0%,
+    #a03434 100%) !important;
+  border-color: #e05c5c !important;
+  color: #fff !important;
+  box-shadow:
+    0 2px 8px rgba(224, 92, 92, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.btn--danger:hover:not(:disabled) {
+  background: linear-gradient(180deg,
+    #e05c5c 0%,
+    #c94a4a 100%) !important;
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.4) !important;
+  transform: none !important;
+}
+
+/* ---------- 8) CARDS UNIFICADOS ---------- */
+.item-cell,
+.spec-card,
+.arena-card,
+.dng-card,
+.ach-card,
+.pvp-card,
+.quest-card,
+.talent-node,
+.life-prof,
+.life-node,
+.char-attr-card,
+.ficha-attr-card,
+.shop-card,
+.char-power-card,
+.ficha-power-card,
+.rankings-row {
+  background: linear-gradient(180deg,
+    rgba(44, 49, 67, 0.55) 0%,
+    rgba(37, 41, 56, 0.75) 100%) !important;
+  border: 1px solid rgba(200, 200, 220, 0.10) !important;
+  border-radius: var(--t-r-md) !important;
+  box-shadow: var(--t-shadow-1) !important;
+  transition: var(--t-transition) !important;
+}
+
+.item-cell:hover,
+.spec-card:hover,
+.arena-card:hover,
+.dng-card:hover,
+.ach-card:hover,
+.pvp-card:hover,
+.quest-card:hover,
+.talent-node:hover,
+.life-prof:hover,
+.life-node:hover,
+.shop-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(232, 184, 96, 0.4) !important;
+  box-shadow:
+    var(--t-shadow-2),
+    0 0 0 1px rgba(232, 184, 96, 0.15) !important;
+}
+
+/* ---------- 9) BARRAS HP / RECURSO / XP ---------- */
+.bar__track {
+  background: rgba(15, 18, 26, 0.9) !important;
+  border-radius: 999px !important;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.6),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.03) !important;
+  overflow: hidden;
+  height: 100%;
+  position: relative;
+}
+
+.bar__fill {
+  border-radius: 999px !important;
+  transition: width 0.4s var(--t-ease) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar--hp .bar__fill {
+  background: linear-gradient(180deg, #f07070 0%, #e05c5c 50%, #a83c3c 100%) !important;
+  box-shadow:
+    0 0 8px rgba(224, 92, 92, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.bar--resource .bar__fill {
+  background: linear-gradient(180deg, #7ab8f0 0%, #5a9ee0 50%, #3d7ac2 100%) !important;
+  box-shadow:
+    0 0 8px rgba(90, 158, 224, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.bar--enemy .bar__fill {
+  background: linear-gradient(180deg, #e88a8a 0%, #c94a4a 50%, #8a2a2a 100%) !important;
+  box-shadow:
+    0 0 8px rgba(224, 92, 92, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Shimmer suave nas barras (unica animacao "de dados") */
+.bar__fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.25) 50%,
+    transparent 100%);
+  background-size: 200% 100%;
+  animation: t-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes t-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.bar__head {
+  color: var(--t-text-2) !important;
+  font-size: var(--t-fs-xs) !important;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.bar__value {
+  color: var(--t-text) !important;
+  font-weight: 700;
+  text-shadow: none !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 10) ACTIVITY BANNER ---------- */
+.activity-banner {
+  background: linear-gradient(135deg,
+    rgba(44, 49, 67, 0.9) 0%,
+    rgba(37, 41, 56, 0.95) 100%) !important;
+  border: 1px solid rgba(232, 184, 96, 0.25) !important;
+  border-radius: var(--t-r-md) !important;
+  box-shadow: var(--t-shadow-2) !important;
+  padding: var(--t-sp-4) !important;
+}
+
+.activity-banner--combat {
+  border-color: rgba(224, 92, 92, 0.4) !important;
+  background: linear-gradient(135deg,
+    rgba(60, 30, 35, 0.5) 0%,
+    rgba(44, 49, 67, 0.9) 100%) !important;
+}
+
+.activity-banner--lifeskill {
+  border-color: rgba(92, 194, 128, 0.4) !important;
+  background: linear-gradient(135deg,
+    rgba(35, 55, 45, 0.5) 0%,
+    rgba(44, 49, 67, 0.9) 100%) !important;
+}
+
+.activity-banner__title {
+  background: none !important;
+  -webkit-text-fill-color: var(--t-text) !important;
+  color: var(--t-text) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px !important;
+}
+
+.activity-banner__sub {
+  color: var(--t-text-3) !important;
+  font-size: var(--t-fs-sm) !important;
+}
+
+.activity-banner__icon {
+  color: var(--t-gold) !important;
+  filter: none !important;
+  animation: none !important;
+}
+
+/* ---------- 11) TOASTS ---------- */
+.toast {
+  background: linear-gradient(180deg,
+    rgba(44, 49, 67, 0.98) 0%,
+    rgba(32, 36, 47, 0.98) 100%) !important;
+  border: 1px solid rgba(200, 200, 220, 0.15) !important;
+  border-left: 3px solid var(--t-gold) !important;
+  border-radius: var(--t-r-sm) !important;
+  box-shadow: var(--t-shadow-3) !important;
+  color: var(--t-text) !important;
+  font-weight: 500 !important;
+  padding: var(--t-sp-3) var(--t-sp-4) !important;
+}
+
+.toast--warn {
+  border-left-color: var(--t-warning) !important;
+}
+
+.toast--error {
+  border-left-color: var(--t-danger) !important;
+}
+
+/* ---------- 12) SECTION TITLES ---------- */
+.char-section-title,
+.ficha-section,
+.combat-section,
+.life-section,
+.craft-head,
+.idle-section,
+.enh-section,
+.eq-section,
+.dng-section,
+.arena-section,
+.ach-section,
+.rankings-section,
+.pvp-section,
+.spec-section,
+.prestige-section {
+  color: var(--t-gold) !important;
+  font-size: var(--t-fs-sm) !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+  text-shadow: none !important;
+  padding: var(--t-sp-2) 0 !important;
+  border-bottom: 1px solid rgba(232, 184, 96, 0.15);
+  margin-bottom: var(--t-sp-2);
+}
+
+/* ---------- 13) SUB-TABS (Arena / Quests / Shop) ---------- */
+.arena-subtab,
+.quest-tab,
+.shop-tab,
+.craft-filter {
+  background: rgba(37, 41, 56, 0.6) !important;
+  border: 1px solid rgba(200, 200, 220, 0.12) !important;
+  border-radius: var(--t-r-sm) !important;
+  color: var(--t-text-2) !important;
+  padding: var(--t-sp-2) var(--t-sp-4) !important;
+  font-size: var(--t-fs-md) !important;
+  font-weight: 600 !important;
+  transition: var(--t-transition) !important;
+}
+
+.arena-subtab:hover,
+.quest-tab:hover,
+.shop-tab:hover,
+.craft-filter:hover {
+  background: rgba(50, 55, 75, 0.8) !important;
+  border-color: rgba(232, 184, 96, 0.3) !important;
+  color: var(--t-text) !important;
+  transform: none !important;
+}
+
+.arena-subtab--active,
+.quest-tab--active,
+.shop-tab--active,
+.craft-filter--active {
+  background: linear-gradient(180deg,
+    rgba(232, 184, 96, 0.18) 0%,
+    rgba(232, 184, 96, 0.06) 100%) !important;
+  border-color: var(--t-gold) !important;
+  color: var(--t-gold-hi) !important;
+  font-weight: 700 !important;
+  box-shadow:
+    0 0 0 1px rgba(232, 184, 96, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}
+
+.arena-subtab--active::after,
+.quest-tab--active::after {
+  display: none !important;
+}
+
+/* ---------- 14) TABS INTERNAS (tabs.ts) ---------- */
+.tab-button {
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  color: var(--t-text-2) !important;
+  font-weight: 600 !important;
+  padding: var(--t-sp-2) var(--t-sp-3) !important;
+  border-radius: var(--t-r-sm) !important;
+  transition: var(--t-transition) !important;
+}
+
+.tab-button:hover {
+  color: var(--t-text) !important;
+  background: rgba(232, 184, 96, 0.06) !important;
+}
+
+.tab-button--active {
+  color: var(--t-gold-hi) !important;
+  border-color: rgba(232, 184, 96, 0.35) !important;
+  background: rgba(232, 184, 96, 0.08) !important;
+}
+
+/* ---------- 15) MODAIS ---------- */
+.shop-modal__box,
+.arena-modal__box,
+.pvp-modal__box,
+.enh-preview {
+  background: linear-gradient(180deg,
+    rgba(44, 49, 67, 0.99) 0%,
+    rgba(32, 36, 47, 0.99) 100%) !important;
+  border: 1px solid rgba(232, 184, 96, 0.3) !important;
+  border-radius: var(--t-r-lg) !important;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ---------- 16) BUFFS ---------- */
+.buff-chip {
+  background: linear-gradient(180deg,
+    rgba(50, 55, 75, 0.9) 0%,
+    rgba(44, 49, 67, 0.9) 100%) !important;
+  border: 1px solid rgba(122, 95, 199, 0.4) !important;
+  border-radius: var(--t-r-sm) !important;
+  color: var(--t-text) !important;
+  box-shadow: var(--t-shadow-1) !important;
+  padding: var(--t-sp-1) var(--t-sp-2) !important;
+}
+
+.buff-chip:hover {
+  border-color: rgba(232, 184, 96, 0.5) !important;
+  box-shadow: var(--t-shadow-2) !important;
+}
+
+/* ---------- 17) SCROLLBAR ---------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(20, 23, 31, 0.6); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg,
+    rgba(122, 95, 199, 0.5) 0%,
+    rgba(232, 184, 96, 0.5) 100%);
+  border-radius: 999px;
+  border: 2px solid rgba(20, 23, 31, 0.8);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg,
+    rgba(122, 95, 199, 0.8) 0%,
+    rgba(232, 184, 96, 0.8) 100%);
+}
+
+/* ---------- 18) EMPTY STATES ---------- */
+.pvp-empty,
+.rankings-empty,
+.dng-empty,
+.craft-empty,
+.shop-empty,
+.enh-empty,
+.life-empty {
+  padding: var(--t-sp-6) var(--t-sp-4) !important;
+  text-align: center;
+  color: var(--t-text-3) !important;
+  font-style: italic;
+  font-size: var(--t-fs-md) !important;
+  border: 1px dashed rgba(200, 200, 220, 0.15) !important;
+  border-radius: var(--t-r-md) !important;
+  background: rgba(37, 41, 56, 0.3) !important;
+}
+
+/* ---------- 19) FOCUS STATES ---------- */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.nav-button:focus-visible,
+.tab-button:focus-visible {
+  outline: 2px solid var(--t-gold) !important;
+  outline-offset: 2px !important;
+  border-radius: var(--t-r-sm);
+}
+
+/* ---------- 20) TIPOGRAFIA ---------- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0 !important;
+  color: var(--t-text) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+}
+
+h1 { font-size: var(--t-fs-2xl) !important; }
+h2 { font-size: var(--t-fs-xl) !important; }
+h3 { font-size: var(--t-fs-lg) !important; }
+
+p, span, div {
+  color: inherit;
+}
+
+/* Numeros tabulares para valores que mudam */
+.bar__value,
+.resource-bar__value,
+.rankings-row__rating,
+.rankings-podium__rating {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 21) ANIMACAO DE ENTRADA DOS PAINEIS ---------- */
+@keyframes t-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.panel-content {
+  animation: t-fade-in 0.2s var(--t-ease);
+}
+
+/* ---------- 22) RESPONSIVE ---------- */
+@media (max-width: 900px) {
+  :root {
+    --t-fs-2xl: 20px;
+    --t-fs-xl: 16px;
+    --t-sp-4: 12px;
+    --t-sp-5: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --t-fs-2xl: 18px;
+    --t-fs-xl: 15px;
+    --t-fs-lg: 14px;
+  }
+  #game-main { padding: var(--t-sp-2) !important; }
+}
+
+/* ============================================================
+   ZERK IDLE — THEME "VANYA" (Dark Fantasy Professional)
+   Referencia: Vanya Online - Idle MMORPG
+   Fundo preto-azulado, dourado contido, animacoes discretas.
+   ============================================================ */
+
+:root {
+  /* Superficies (preto azulado profundo) */
+  --v-bg:         #0d0d12;
+  --v-bg-2:       #121218;
+  --v-surface:    #1a1a24;
+  --v-surface-2:  #21212e;
+  --v-card:       #1e1e2a;
+  --v-card-hi:    #282838;
+  --v-elevated:   #2e2e40;
+
+  /* Dourado envelhecido */
+  --v-gold:       #c9a04e;
+  --v-gold-hi:    #e0bc72;
+  --v-gold-lo:    #8a6a30;
+  --v-gold-bg:    rgba(201, 160, 78, 0.10);
+
+  /* Roxo escuro (secundaria) */
+  --v-purple:     #5a4a7a;
+  --v-purple-hi:  #7a68a0;
+  --v-purple-bg:  rgba(90, 74, 122, 0.12);
+
+  /* Estado */
+  --v-hp:         #c94a4a;
+  --v-hp-lo:      #8a2a2a;
+  --v-resource:   #4a7ac9;
+  --v-resource-lo: #2a4a8a;
+  --v-xp:         #7a68a0;
+  --v-silver:     #c9a04e;
+
+  /* Texto */
+  --v-text:       #e8e4d8;
+  --v-text-2:     #b8b0a0;
+  --v-text-3:     #8a8478;
+  --v-text-mute:  #5a5650;
+
+  /* Bordas */
+  --v-border:     1px solid rgba(201, 160, 78, 0.15);
+  --v-border-hi:  1px solid rgba(201, 160, 78, 0.40);
+
+  /* Espacamento */
+  --v-sp-1: 4px;
+  --v-sp-2: 8px;
+  --v-sp-3: 12px;
+  --v-sp-4: 16px;
+  --v-sp-5: 24px;
+
+  /* Tipografia */
+  --v-fs-xs: 11px;
+  --v-fs-sm: 12px;
+  --v-fs-md: 13px;
+  --v-fs-lg: 15px;
+  --v-fs-xl: 18px;
+  --v-fs-2xl: 22px;
+
+  /* Profundidade */
+  --v-shadow-1: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --v-shadow-2: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --v-shadow-3: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+  --v-r-sm: 4px;
+  --v-r-md: 8px;
+  --v-r-lg: 12px;
+
+  --v-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --v-dur: 0.18s;
+  --v-transition: all var(--v-dur) var(--v-ease);
+}
+
+/* ---------- FUNDO GLOBAL ---------- */
+body {
+  background:
+    radial-gradient(ellipse 1000px 600px at 50% -20%, rgba(90, 74, 122, 0.08), transparent 70%),
+    linear-gradient(180deg, #0d0d12 0%, #08080c 100%) !important;
+  background-attachment: fixed !important;
+  color: var(--v-text) !important;
+  font-size: var(--v-fs-md);
+  line-height: 1.5;
+  animation: none !important;
+}
+
+#game-main::before { display: none !important; }
+
+/* ---------- HEADER ---------- */
+#game-header {
+  background: linear-gradient(180deg, rgba(26, 26, 36, 0.98) 0%, rgba(13, 13, 18, 0.98) 100%) !important;
+  border-bottom: var(--v-border) !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5) !important;
+  padding: var(--v-sp-3) var(--v-sp-4);
+  background-image: none !important;
+}
+
+.header-brand h1 {
+  background: linear-gradient(135deg, #e0bc72 0%, #c9a04e 60%, #8a6a30 100%) !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  filter: none !important;
+  animation: none !important;
+  font-size: var(--v-fs-2xl) !important;
+  letter-spacing: 2px !important;
+  font-weight: 700 !important;
+}
+
+#game-version {
+  color: var(--v-text-mute) !important;
+  font-size: var(--v-fs-xs) !important;
+  font-style: italic;
+}
+
+/* ---------- RESOURCE BAR ---------- */
+.resource-bar__item {
+  background: linear-gradient(180deg, rgba(33, 33, 46, 0.95) 0%, rgba(26, 26, 36, 0.95) 100%) !important;
+  border: var(--v-border) !important;
+  border-radius: var(--v-r-sm) !important;
+  box-shadow: var(--v-shadow-1) !important;
+  transition: var(--v-transition) !important;
+  padding: var(--v-sp-2) var(--v-sp-3) !important;
+}
+
+.resource-bar__item:hover {
+  border-color: rgba(201, 160, 78, 0.35) !important;
+  box-shadow: var(--v-shadow-2), 0 0 12px rgba(201, 160, 78, 0.15) !important;
+}
+
+.resource-bar__label {
+  color: var(--v-text-3) !important;
+  font-size: var(--v-fs-xs) !important;
+  letter-spacing: 0.8px !important;
+  text-transform: uppercase;
+}
+
+.resource-bar__value {
+  color: var(--v-gold-hi) !important;
+  font-weight: 700 !important;
+  font-size: var(--v-fs-lg) !important;
+  text-shadow: none !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- SIDEBAR ---------- */
+#tab-nav {
+  background: linear-gradient(180deg, rgba(21, 21, 29, 0.98) 0%, rgba(13, 13, 18, 0.98) 100%) !important;
+  border-right: var(--v-border) !important;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.4) !important;
+}
+
+.nav-group__label {
+  color: var(--v-text-mute) !important;
+  font-size: var(--v-fs-xs) !important;
+  letter-spacing: 1.5px !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+  padding: var(--v-sp-3) var(--v-sp-3) var(--v-sp-1) !important;
+  text-transform: uppercase;
+}
+
+.nav-button {
+  color: var(--v-text-2) !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--v-r-sm) !important;
+  padding: var(--v-sp-2) var(--v-sp-3) !important;
+  font-size: var(--v-fs-md) !important;
+  font-weight: 500 !important;
+  transition: var(--v-transition) !important;
+  text-shadow: none !important;
+}
+
+.nav-button:hover {
+  background: rgba(201, 160, 78, 0.06) !important;
+  border-color: rgba(201, 160, 78, 0.20) !important;
+  color: var(--v-text) !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.nav-button--active {
+  background: linear-gradient(90deg, rgba(201, 160, 78, 0.14) 0%, rgba(201, 160, 78, 0.03) 100%) !important;
+  color: var(--v-gold-hi) !important;
+  border-color: rgba(201, 160, 78, 0.35) !important;
+  font-weight: 600 !important;
+  box-shadow: none !important;
+  animation: none !important;
+}
+
+.nav-button--active::before {
+  content: '' !important;
+  background: var(--v-gold) !important;
+  width: 3px !important;
+  left: 0 !important;
+  top: 25% !important;
+  bottom: 25% !important;
+  border-radius: 0 2px 2px 0 !important;
+  box-shadow: 0 0 8px rgba(201, 160, 78, 0.5) !important;
+  animation: none !important;
+}
+
+.nav-button__icon { color: currentColor !important; opacity: 0.85; }
+.nav-button--active .nav-button__icon { color: var(--v-gold-hi) !important; opacity: 1; }
+
+/* ---------- MAIN CONTENT ---------- */
+#game-main {
+  background: transparent !important;
+  padding: var(--v-sp-4) !important;
+}
+
+/* ---------- PANEL HEADER ---------- */
+.panel-header {
+  background: linear-gradient(180deg, rgba(33, 33, 46, 0.7) 0%, rgba(26, 26, 36, 0.5) 100%) !important;
+  border: var(--v-border) !important;
+  border-radius: var(--v-r-md) !important;
+  box-shadow: var(--v-shadow-1) !important;
+  padding: var(--v-sp-4) !important;
+  margin-bottom: var(--v-sp-3) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.panel-header::before {
+  content: '' !important;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 160, 78, 0.5), transparent);
+  opacity: 1 !important;
+  animation: none !important;
+}
+
+.panel-header__icon {
+  color: var(--v-gold) !important;
+  filter: none !important;
+  animation: none !important;
+}
+
+.panel-header__title {
+  background: none !important;
+  -webkit-text-fill-color: var(--v-text) !important;
+  color: var(--v-text) !important;
+  font-size: var(--v-fs-xl) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.5px !important;
+  filter: none !important;
+}
+
+.panel-header__sub {
+  color: var(--v-text-3) !important;
+  font-size: var(--v-fs-sm) !important;
+  font-style: italic;
+}
+
+/* ---------- BOTOES ---------- */
+.btn {
+  background: linear-gradient(180deg, rgba(50, 50, 70, 0.95) 0%, rgba(33, 33, 46, 0.95) 100%) !important;
+  border: 1px solid rgba(201, 160, 78, 0.25) !important;
+  border-radius: var(--v-r-sm) !important;
+  color: var(--v-text) !important;
+  font-size: var(--v-fs-md) !important;
+  font-weight: 600 !important;
+  padding: var(--v-sp-2) var(--v-sp-3) !important;
+  box-shadow: var(--v-shadow-1), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+  transition: var(--v-transition) !important;
+  text-shadow: none !important;
+}
+
+.btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(65, 65, 90, 0.98) 0%, rgba(45, 45, 64, 0.98) 100%) !important;
+  border-color: rgba(201, 160, 78, 0.55) !important;
+  color: var(--v-gold-hi) !important;
+  transform: translateY(-1px);
+  box-shadow: var(--v-shadow-2), 0 0 12px rgba(201, 160, 78, 0.2) !important;
+}
+
+.btn--primary {
+  background: linear-gradient(180deg, #d9b368 0%, #b88838 100%) !important;
+  border-color: #e0bc72 !important;
+  color: #1a1408 !important;
+  font-weight: 700 !important;
+  box-shadow: var(--v-shadow-2), inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.2) !important;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #e8c47e 0%, #c9a04e 100%) !important;
+  transform: translateY(-1px);
+  box-shadow: var(--v-shadow-3), 0 0 20px rgba(201, 160, 78, 0.4) !important;
+}
+
+.btn--danger {
+  background: linear-gradient(180deg, #c94a4a 0%, #8a2a2a 100%) !important;
+  border-color: #e05c5c !important;
+  color: #fff !important;
+}
+
+.btn:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.5) !important;
+  transform: none !important;
+}
+
+/* ---------- CARDS UNIFICADOS ---------- */
+.item-cell,
+.spec-card,
+.arena-card,
+.dng-card,
+.ach-card,
+.pvp-card,
+.quest-card,
+.talent-node,
+.life-prof,
+.life-node,
+.char-attr-card,
+.ficha-attr-card,
+.shop-card,
+.char-power-card,
+.ficha-power-card,
+.rankings-row {
+  background: linear-gradient(180deg, rgba(33, 33, 46, 0.6) 0%, rgba(26, 26, 36, 0.8) 100%) !important;
+  border: var(--v-border) !important;
+  border-radius: var(--v-r-md) !important;
+  box-shadow: var(--v-shadow-1) !important;
+  transition: var(--v-transition) !important;
+}
+
+.item-cell:hover,
+.spec-card:hover,
+.arena-card:hover,
+.dng-card:hover,
+.ach-card:hover,
+.pvp-card:hover,
+.quest-card:hover,
+.talent-node:hover,
+.life-prof:hover,
+.life-node:hover,
+.shop-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(201, 160, 78, 0.45) !important;
+  box-shadow: var(--v-shadow-2), 0 0 16px rgba(201, 160, 78, 0.15) !important;
+}
+
+/* ---------- BARRAS HP / RECURSO / XP ---------- */
+.bar__track {
+  background: rgba(10, 10, 14, 0.9) !important;
+  border-radius: 999px !important;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.7), inset 0 -1px 0 rgba(255, 255, 255, 0.03) !important;
+  overflow: hidden;
+  position: relative;
+}
+
+.bar__fill {
+  border-radius: 999px !important;
+  transition: width 0.4s var(--v-ease) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.bar--hp .bar__fill {
+  background: linear-gradient(180deg, #e05c5c 0%, #c94a4a 50%, #8a2a2a 100%) !important;
+  box-shadow: 0 0 8px rgba(201, 74, 74, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.bar--resource .bar__fill {
+  background: linear-gradient(180deg, #6a9ae0 0%, #4a7ac9 50%, #2a4a8a 100%) !important;
+  box-shadow: 0 0 8px rgba(74, 122, 201, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.bar--enemy .bar__fill {
+  background: linear-gradient(180deg, #e07070 0%, #c94a4a 50%, #8a2a2a 100%) !important;
+  box-shadow: 0 0 8px rgba(201, 74, 74, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.bar__fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: v-shimmer 3s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+@keyframes v-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.bar__head {
+  color: var(--v-text-2) !important;
+  font-size: var(--v-fs-xs) !important;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.bar__value {
+  color: var(--v-text) !important;
+  font-weight: 700;
+  text-shadow: none !important;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- ACTIVITY BANNER ---------- */
+.activity-banner {
+  background: linear-gradient(135deg, rgba(33, 33, 46, 0.95) 0%, rgba(26, 26, 36, 0.95) 100%) !important;
+  border: var(--v-border) !important;
+  border-radius: var(--v-r-md) !important;
+  box-shadow: var(--v-shadow-2) !important;
+  padding: var(--v-sp-4) !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.activity-banner::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(201, 160, 78, 0.6), transparent);
+}
+
+.activity-banner--combat {
+  border-color: rgba(201, 74, 74, 0.35) !important;
+  background: linear-gradient(135deg, rgba(50, 20, 25, 0.6) 0%, rgba(33, 33, 46, 0.95) 100%) !important;
+}
+
+.activity-banner--lifeskill {
+  border-color: rgba(92, 194, 128, 0.35) !important;
+  background: linear-gradient(135deg, rgba(25, 45, 35, 0.5) 0%, rgba(33, 33, 46, 0.95) 100%) !important;
+}
+
+.activity-banner__title {
+  background: none !important;
+  -webkit-text-fill-color: var(--v-text) !important;
+  color: var(--v-text) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px !important;
+}
+
+.activity-banner__sub {
+  color: var(--v-text-3) !important;
+  font-size: var(--v-fs-sm) !important;
+}
+
+.activity-banner__icon {
+  color: var(--v-gold) !important;
+  filter: none !important;
+  animation: none !important;
+}
+
+/* ---------- TOASTS ---------- */
+.toast {
+  background: linear-gradient(180deg, rgba(33, 33, 46, 0.98) 0%, rgba(21, 21, 29, 0.98) 100%) !important;
+  border: var(--v-border) !important;
+  border-left: 3px solid var(--v-gold) !important;
+  border-radius: var(--v-r-sm) !important;
+  box-shadow: var(--v-shadow-3) !important;
+  color: var(--v-text) !important;
+  font-weight: 500 !important;
+  padding: var(--v-sp-3) var(--v-sp-4) !important;
+}
+
+.toast--warn { border-left-color: #e89a5c !important; }
+.toast--error { border-left-color: #c94a4a !important; }
+
+/* ---------- SECTION TITLES ---------- */
+.char-section-title,
+.ficha-section,
+.combat-section,
+.life-section,
+.craft-head,
+.idle-section,
+.enh-section,
+.eq-section,
+.dng-section,
+.arena-section,
+.ach-section,
+.rankings-section,
+.pvp-section,
+.spec-section,
+.prestige-section,
+.talents-branch__head {
+  color: var(--v-gold) !important;
+  font-size: var(--v-fs-sm) !important;
+  font-weight: 700 !important;
+  letter-spacing: 1.5px !important;
+  text-transform: uppercase !important;
+  text-shadow: none !important;
+  padding: var(--v-sp-2) 0 !important;
+  border-bottom: 1px solid rgba(201, 160, 78, 0.12);
+  margin-bottom: var(--v-sp-2);
+}
+
+/* ---------- SUB-TABS ---------- */
+.arena-subtab,
+.quest-tab,
+.shop-tab,
+.craft-filter {
+  background: rgba(26, 26, 36, 0.7) !important;
+  border: 1px solid rgba(201, 160, 78, 0.15) !important;
+  border-radius: var(--v-r-sm) !important;
+  color: var(--v-text-2) !important;
+  padding: var(--v-sp-2) var(--v-sp-4) !important;
+  font-size: var(--v-fs-md) !important;
+  font-weight: 600 !important;
+  transition: var(--v-transition) !important;
+}
+
+.arena-subtab:hover,
+.quest-tab:hover,
+.shop-tab:hover,
+.craft-filter:hover {
+  background: rgba(40, 40, 58, 0.9) !important;
+  border-color: rgba(201, 160, 78, 0.4) !important;
+  color: var(--v-text) !important;
+}
+
+.arena-subtab--active,
+.quest-tab--active,
+.shop-tab--active,
+.craft-filter--active {
+  background: linear-gradient(180deg, rgba(201, 160, 78, 0.18) 0%, rgba(201, 160, 78, 0.05) 100%) !important;
+  border-color: var(--v-gold) !important;
+  color: var(--v-gold-hi) !important;
+  font-weight: 700 !important;
+  box-shadow: 0 0 0 1px rgba(201, 160, 78, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+.arena-subtab--active::after,
+.quest-tab--active::after { display: none !important; }
+
+/* ---------- MODAIS ---------- */
+.shop-modal__box,
+.arena-modal__box,
+.pvp-modal__box,
+.enh-preview {
+  background: linear-gradient(180deg, rgba(33, 33, 46, 0.99) 0%, rgba(21, 21, 29, 0.99) 100%) !important;
+  border: 1px solid rgba(201, 160, 78, 0.3) !important;
+  border-radius: var(--v-r-lg) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* ---------- BUFFS ---------- */
+.buff-chip {
+  background: linear-gradient(180deg, rgba(40, 40, 58, 0.95) 0%, rgba(33, 33, 46, 0.95) 100%) !important;
+  border: 1px solid rgba(90, 74, 122, 0.4) !important;
+  border-radius: var(--v-r-sm) !important;
+  color: var(--v-text) !important;
+  box-shadow: var(--v-shadow-1) !important;
+  padding: var(--v-sp-1) var(--v-sp-2) !important;
+}
+
+.buff-chip:hover {
+  border-color: rgba(201, 160, 78, 0.5) !important;
+  box-shadow: var(--v-shadow-2) !important;
+}
+
+/* ---------- SCROLLBAR ---------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: rgba(13, 13, 18, 0.8); }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(90, 74, 122, 0.6) 0%, rgba(201, 160, 78, 0.5) 100%);
+  border-radius: 999px;
+  border: 2px solid rgba(13, 13, 18, 0.9);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(122, 104, 160, 0.9) 0%, rgba(201, 160, 78, 0.8) 100%);
+}
+
+/* ---------- EMPTY STATES ---------- */
+.pvp-empty,
+.rankings-empty,
+.dng-empty,
+.craft-empty,
+.shop-empty,
+.enh-empty,
+.life-empty {
+  padding: var(--v-sp-5) var(--v-sp-4) !important;
+  text-align: center;
+  color: var(--v-text-mute) !important;
+  font-style: italic;
+  font-size: var(--v-fs-md) !important;
+  border: 1px dashed rgba(201, 160, 78, 0.15) !important;
+  border-radius: var(--v-r-md) !important;
+  background: rgba(26, 26, 36, 0.3) !important;
+}
+
+/* ---------- FOCUS STATES ---------- */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+.nav-button:focus-visible {
+  outline: 2px solid var(--v-gold) !important;
+  outline-offset: 2px !important;
+  border-radius: var(--v-r-sm);
+}
+
+/* ---------- TIPOGRAFIA ---------- */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0 !important;
+  color: var(--v-text) !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.3px;
+}
+
+h1 { font-size: var(--v-fs-2xl) !important; }
+h2 { font-size: var(--v-fs-xl) !important; }
+h3 { font-size: var(--v-fs-lg) !important; }
+
+/* ---------- ANIMACAO DE ENTRADA ---------- */
+@keyframes v-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.panel-content {
+  animation: v-fade-in 0.2s var(--v-ease);
+}
+
+/* ---------- RESPONSIVE ---------- */
+@media (max-width: 900px) {
+  :root {
+    --v-fs-2xl: 19px;
+    --v-fs-xl: 16px;
+    --v-sp-4: 12px;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --v-fs-2xl: 17px;
+    --v-fs-xl: 15px;
+    --v-fs-lg: 14px;
+  }
+  #game-main { padding: var(--v-sp-2) !important; }
+}

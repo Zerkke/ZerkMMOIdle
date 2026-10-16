@@ -340,10 +340,24 @@ function buildBottomBar(services: GameServices, rerender: () => void): HTMLEleme
     // forja em breve
   }));
 
+  const repairPreview = services.getRepairAllToolsCost();
+  const repairLabel = repairPreview ? 'Reparar (' + repairPreview.cost + 'p)' : 'Reparar';
+  bar.appendChild(buildBottomBtn(repairLabel, 'hammer', () => {
+    if (!repairPreview) {
+      services.repairAllTools();
+      rerender();
+      return;
+    }
+    const msg = 'Reparar ' + repairPreview.toolCount + ' ferramenta(s) por ' + repairPreview.cost + ' prata?';
+    if (!window.confirm(msg)) return;
+    services.repairAllTools();
+    rerender();
+  }, repairPreview !== null));
+
   return bar;
 }
 
-function buildBottomBtn(label: string, icon: 'briefcase' | 'plus' | 'coin' | 'anvil', onClick: () => void, accent = false): HTMLElement {
+function buildBottomBtn(label: string, icon: 'briefcase' | 'plus' | 'coin' | 'anvil' | 'hammer', onClick: () => void, accent = false): HTMLElement {
   const b = document.createElement('button');
   b.type = 'button';
   b.className = 'inv-bottom__btn' + (accent ? ' inv-bottom__btn--accent' : '');
