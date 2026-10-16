@@ -69,6 +69,8 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
 
   const talentsState = services.getTalentsService().getState();
   const specState = services.getSpecializationsService().getState();
+  const dngState = services.getDungeonsService().getState();
+  const dngKey = 'dng:' + (dngState.active ? dngState.active.dungeonId + ':' + dngState.active.waveIndex + ':' + dngState.active.monsterIndex : 'none');
   const specKey = 'spec:' + (specState.active ?? 'none') + ':' + specState.changeCount;
   const talentsKey = Object.entries(talentsState.ranks).sort().map(([k, v]) => k + '=' + v).join(',') + '|r' + talentsState.respecCount;
 
@@ -92,6 +94,7 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
     'farm:' + farmKey,
     'talents:' + talentsKey,
     specKey,
+    dngKey,
   ].join('|');
 }
 

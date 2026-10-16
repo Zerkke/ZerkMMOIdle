@@ -7704,3 +7704,54 @@ img, svg, video {
   .spec-compare__table { font-size: 10px; }
   .spec-compare__table th, .spec-compare__table td { padding: 4px 6px; }
 }
+
+/* ==================== DUNGEONS ==================== */
+.dng-panel { display: flex; flex-direction: column; gap: 14px; }
+.dng-section { font-size: 11px; font-weight: 700; color: #a8a0c0; text-transform: uppercase; letter-spacing: 1.5px; }
+.dng-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.dng-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 8px; border: 1px solid rgba(90, 80, 130, 0.4); background: rgba(20, 15, 40, 0.6); }
+.dng-card--locked { opacity: 0.65; }
+.dng-card__head { display: flex; align-items: center; gap: 10px; }
+.dng-card__icon { color: var(--dng-color, #e8c977); }
+.dng-card__name { font-size: 15px; font-weight: 700; color: var(--dng-color, #e8e0f0); }
+.dng-card__desc { font-size: 12px; color: #c8b8e0; margin: 0; }
+.dng-card__meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.dng-meta-chip { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; padding: 3px 7px; border-radius: 4px; background: rgba(90, 80, 130, 0.3); color: #a8a0c0; font-weight: 600; }
+.dng-card__recs { display: flex; flex-direction: column; gap: 3px; }
+.dng-rec { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.dng-rec__dot { width: 8px; height: 8px; border-radius: 50%; background: #6a3a3a; }
+.dng-rec--ok .dng-rec__dot { background: #6ab87a; }
+.dng-rec--ok { color: #a8d0b0; }
+.dng-rec--bad { color: #c8a0a0; }
+.dng-card__best { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 4px; background: rgba(15, 10, 30, 0.6); }
+.dng-best-line { display: flex; justify-content: space-between; font-size: 11px; }
+.dng-best-line__label { color: #a8a0c0; }
+.dng-best-line__value { color: #e8c977; font-weight: 700; }
+.dng-card__btn { margin-top: 4px; padding: 10px; font-size: 12px; font-weight: 700; letter-spacing: 1px; border-radius: 6px; cursor: pointer; background: var(--dng-color, #6a9ad8); color: #0d0a1a; border: none; }
+.dng-card__btn:disabled { background: rgba(80, 70, 100, 0.4); color: #7a7088; cursor: not-allowed; }
+.dng-card__btn:hover:not(:disabled) { filter: brightness(1.1); }
+
+.dng-active { display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 10px; border: 2px solid var(--dng-color, #e8a848); background: linear-gradient(135deg, rgba(60, 30, 20, 0.6), rgba(30, 20, 55, 0.8)); }
+.dng-active__head { display: flex; align-items: center; gap: 12px; }
+.dng-active__icon { color: var(--dng-color, #e8a848); }
+.dng-active__info { flex: 1; }
+.dng-active__title { font-size: 18px; font-weight: 700; color: var(--dng-color, #e8e0f0); letter-spacing: 0.5px; }
+.dng-active__subtitle { font-size: 12px; color: #a8a0c0; margin-top: 2px; }
+.dng-active__track { height: 10px; border-radius: 5px; background: rgba(15, 10, 30, 0.8); overflow: hidden; }
+.dng-active__fill { height: 100%; background: var(--dng-color, #e8a848); transition: width 0.3s ease; }
+.dng-active__track--total { height: 6px; margin-top: 6px; }
+.dng-active__fill--total { background: #6ab87a; }
+.dng-active__progress-label { font-size: 11px; color: #a8a0c0; text-align: right; }
+.dng-active__timer { font-size: 14px; font-weight: 700; color: #6ab87a; text-align: center; padding: 8px; border-radius: 6px; background: rgba(15, 10, 30, 0.6); }
+.dng-active__timer--urgent { color: #e85858; animation: dng-pulse 1s infinite; }
+@keyframes dng-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+.dng-active__grid { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: 6px; background: rgba(15, 10, 30, 0.5); }
+.dng-info-line { display: flex; justify-content: space-between; font-size: 12px; }
+.dng-info-line__label { color: #a8a0c0; }
+.dng-info-line__value { color: #e8e0f0; font-weight: 600; }
+.dng-active__btn { padding: 10px; font-size: 12px; font-weight: 700; letter-spacing: 1px; border-radius: 6px; cursor: pointer; background: transparent; color: #e8a0a0; border: 1px solid #6a3a3a; }
+.dng-active__btn:hover { background: rgba(106, 58, 58, 0.25); }
+
+@media (max-width: 640px) {
+  .dng-grid { grid-template-columns: 1fr; }
+}

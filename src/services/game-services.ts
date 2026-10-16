@@ -66,6 +66,10 @@ import { TalentsService } from './talents-service';
 import { TALENT_TREE } from '../data/talents.data';
 import { SpecializationsService } from './specializations-service';
 import { SPECIALIZATION_TREE } from '../data/specializations.data';
+import { DungeonsService } from './dungeons-service';
+import { DUNGEONS } from '../data/dungeons.data';
+import type { DungeonsState } from '../domain/dungeons/types';
+import type { DungeonDefinition } from '../domain/dungeons/types';
 import type { SpecializationState } from '../domain/specializations/types';
 import type { TalentState } from '../domain/talents/types';
 
@@ -92,6 +96,7 @@ export type ServiceEvent =
   | { readonly type: 'quest-changed' }
   | { readonly type: 'talents-changed' }
   | { readonly type: 'specialization-changed' }
+  | { readonly type: 'dungeon-changed' }
   | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
 
 export interface CombatSessionInfo {
@@ -156,6 +161,7 @@ export class GameServices {
   private rng: () => number;
   private readonly talentsService: TalentsService;
   private readonly specializationsService: SpecializationsService;
+  private readonly dungeonsService: DungeonsService;
 
   constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
     this.rng = rng;
@@ -235,6 +241,27 @@ export class GameServices {
       },
       specInitial,
     );
+    const dungeonsInitial: DungeonsState = save.dungeons
+      ? {
+          active: save.dungeons.active ? { ...save.dungeons.active } : null,
+          results: Object.fromEntries(Object.entries(save.dungeons.results).map(([k, v]) => [k, { ...v }])),
+        }
+      : { active: null, results: {} };
+    this.dungeonsService = new DungeonsService(
+      DUNGEONS,
+      {
+        getCharacterLevel: () => this.character.level,
+        getAp: () => this.getDerivedStats().ap,
+        getDp: () => this.getDerivedStats().dp,
+        getSilver: () => this.character.silver,
+        spendSilver: (amount: number) => {
+          if (this.character.silver < amount) return false;
+          this.character = { ...this.character, silver: this.character.silver - amount };
+          return true;
+        },
+      },
+      dungeonsInitial,
+    );
     this.ensureAllProfessions();
     this.repairLegacyTools();
     this.ensureStartingTools();
@@ -264,7 +291,7 @@ export class GameServices {
     }
 
     return new GameServices(registry, {
-      schemaVersion: 14,
+      schemaVersion: 15,
       savedAt: now,
       character: characterToSnapshot(character),
       inventory: inventoryToSnapshot(inventory),
@@ -284,6 +311,7 @@ export class GameServices {
       quests: [],
       talents: { ranks: {}, respecCount: 0 },
       specialization: { active: null, changeCount: 0, lastChangeAt: 0 },
+      dungeons: { active: null, results: {} },
     }, rng);
   }
 
@@ -314,6 +342,37 @@ export class GameServices {
     return r;
   }
   getSpecializationsService(): SpecializationsService { return this.specializationsService; }
+  getDungeonsService(): DungeonsService { return this.dungeonsService; }
+  startDungeon(dungeonId: string): boolean {
+    if (this.combatState) { this.emit({ type: 'notice', message: 'Termina o combate atual primeiro.', level: 'warn' }); return false; }
+    if (this.activity) { this.emit({ type: 'notice', message: 'Termina a atividade atual primeiro.', level: 'warn' }); return false; }
+    const r = this.dungeonsService.start(dungeonId, Date.now());
+    if (!r.ok) {
+      const reasonMap: Record<string, string> = {
+        'unknown-dungeon': 'Dungeon desconhecida.',
+        'already-active': 'Ja tens uma dungeon ativa.',
+        'level-too-low': 'Nivel insuficiente.',
+        'not-enough-silver': 'Prata insuficiente.',
+      };
+      this.emit({ type: 'notice', message: reasonMap[r.reason ?? ''] ?? 'Nao foi possivel iniciar.', level: 'warn' });
+      return false;
+    }
+    this.currentZoneId = null;
+    this.currentZoneScaling = null;
+    this.sessionKills = 0; this.sessionXp = 0; this.sessionSilver = 0;
+    this.sessionLoot = new Map(); this.combatLog = []; this.pausedUntilMs = 0;
+    this.spawnNextMonster(Date.now());
+    this.emit({ type: 'dungeon-changed' });
+    this.emit({ type: 'combat-changed' });
+    return true;
+  }
+  abandonDungeon(): void {
+    if (!this.dungeonsService.isActive()) return;
+    this.dungeonsService.abandon();
+    this.stopCombat();
+    this.emit({ type: 'dungeon-changed' });
+    this.emit({ type: 'notice', message: 'Dungeon abandonada.', level: 'warn' });
+  }
   activateSpecialization(specId: import('../domain/specializations/types').SpecializationId): boolean {
     const r = this.specializationsService.activate(specId, Date.now());
     if (!r.ok) return false;
@@ -746,8 +805,18 @@ export class GameServices {
     const expired = this.buffs.tick(nowMs);
     if (expired.length > 0) this.emit({ type: 'buff-changed' });
 
-    if (!this.combatState || !this.currentZoneId || !this.currentMonsterId) return;
+    if (!this.combatState || !this.currentMonsterId) return;
+    const isDungeonRun = this.dungeonsService.isActive();
+    if (!isDungeonRun && !this.currentZoneId) return;
     if (deltaMs <= 0) return;
+    if (this.dungeonsService.isActive() && this.dungeonsService.checkTimeout(nowMs)) {
+      this.emit({ type: 'notice', message: 'Tempo esgotado! Dungeon falhada.', level: 'error' });
+      this.combatState = null;
+      this.currentMonsterId = null;
+      this.emit({ type: 'dungeon-changed' });
+      this.emit({ type: 'combat-changed' });
+      return;
+    }
     const dt = Math.min(deltaMs, MAX_TICK_MS);
     if (nowMs < this.pausedUntilMs) return;
     if (this.combatState.outcome !== 'ongoing') { this.spawnNextMonster(nowMs); return; }
@@ -803,6 +872,24 @@ export class GameServices {
   }
 
   private spawnNextMonster(nowMs: number): void {
+    // DUNGEON: usa a queue da dungeon em vez da zona
+    if (this.dungeonsService.isActive()) {
+      const monsterId = this.dungeonsService.getCurrentMonsterId();
+      if (!monsterId) { this.abandonDungeon(); return; }
+      const mDef = this.registry.getMonster(monsterId as MonsterId);
+      if (!mDef) { this.abandonDungeon(); return; }
+      this.currentMonsterId = monsterId as MonsterId;
+      this.currentMonsterMaxHp = mDef.maxHp;
+      const p = this.buildPlayerInput();
+      const m = this.buildMonsterInput(mDef);
+      const base = newCombatState(nowMs, p, m);
+      const startHp = Math.max(1, Math.min(p.maxHp, this.character.hp));
+      const startRes = Math.max(0, Math.min(p.maxResource, this.character.resource));
+      this.combatState = { ...base, playerHp: startHp, playerResource: startRes };
+      this.syncCharacterFromCombat();
+      return;
+    }
+
     if (!this.currentZoneId) return;
     const zone = this.registry.getZone(this.currentZoneId);
     if (!zone || zone.monsters.length === 0) { this.stopCombat(); return; }
@@ -864,13 +951,74 @@ export class GameServices {
     this.ledger.record('combat', silverGain, itemDeltas, 'Abate: ' + def.name, nowMs);
     this.triggerTutorial({ kind: 'kill-monster', targetId: def.id as string, amount: 1 });
     this.triggerQuest({ kind: 'kill-monster', targetId: def.id as string, amount: 1 });
+    if (this.dungeonsService.isActive()) {
+      const r = this.dungeonsService.recordKill(nowMs);
+      if (r.dungeonComplete && r.def) {
+        this.handleDungeonComplete(r.def, nowMs);
+      }
+      this.emit({ type: 'dungeon-changed' });
+    }
     this.emit({ type: 'inventory-changed' });
     this.emit({ type: 'character-changed' });
     this.spawnNextMonster(nowMs);
   }
 
+  private handleDungeonComplete(def: DungeonDefinition, nowMs: number): void {
+    const r = this.dungeonsService.complete(nowMs);
+    if (!r) return;
+    const silver = def.completionSilver;
+    const xp = def.completionXp;
+    this.character = addSilver(this.character, silver);
+    const prevLevel = this.character.level;
+    this.character = applyExperience(this.character, xp).state;
+    if (this.character.level > prevLevel) {
+      const d = this.getDerivedStats();
+      this.character = { ...this.character, hp: d.maxHp, resource: d.maxResource };
+    }
+    const itemDeltas: { itemId: ItemId; delta: number }[] = [];
+    for (const l of def.completionLoot) {
+      if (this.rng() >= l.chance) continue;
+      const span = l.maxQuantity - l.minQuantity + 1;
+      const qty = l.minQuantity + Math.floor(this.rng() * span);
+      const itemId = asItemId(l.itemId);
+      const itemDef = this.registry.getItem(itemId);
+      if (!itemDef) continue;
+      this.inventory.add(itemId, qty, itemDef.maxStack, 0);
+      itemDeltas.push({ itemId, delta: qty });
+    }
+    if (r.isFirstClear && def.firstClearBonus) {
+      const fb = def.firstClearBonus;
+      this.character = addSilver(this.character, fb.silver);
+      this.character = applyExperience(this.character, fb.xp).state;
+      for (const it of fb.items) {
+        const itemId = asItemId(it.itemId);
+        const itemDef = this.registry.getItem(itemId);
+        if (!itemDef) continue;
+        const dur = isTool(itemDef) ? itemDef.maxDurability : null;
+        this.inventory.add(itemId, it.quantity, itemDef.maxStack, 0, dur);
+        itemDeltas.push({ itemId, delta: it.quantity });
+      }
+      this.emit({ type: 'notice', message: '1a conclusao! Bonus unico recebido.', level: 'info' });
+    }
+    this.ledger.record('combat', silver, itemDeltas, 'Dungeon: ' + def.name, nowMs);
+    const secs = Math.floor(r.elapsed / 1000);
+    const min = Math.floor(secs / 60);
+    const s = secs % 60;
+    const timeStr = min > 0 ? (min + 'm' + s + 's') : (s + 's');
+    this.emit({ type: 'notice', message: def.name + ' concluida em ' + timeStr + '!', level: 'info' });
+    this.emit({ type: 'character-changed' });
+    this.emit({ type: 'inventory-changed' });
+    this.emit({ type: 'dungeon-changed' });
+    this.stopCombat();
+  }
   private handleDefeat(nowMs: number): void {
-    this.emit({ type: 'notice', message: 'Foste derrotado. Recuperas em alguns segundos.', level: 'warn' });
+    if (this.dungeonsService.isActive()) {
+      this.dungeonsService.abandon();
+      this.emit({ type: 'dungeon-changed' });
+      this.emit({ type: 'notice', message: 'Foste derrotado. Dungeon falhada.', level: 'error' });
+    } else {
+      this.emit({ type: 'notice', message: 'Foste derrotado. Recuperas em alguns segundos.', level: 'warn' });
+    }
     const derived = this.getDerivedStats();
     this.character = { ...this.character, hp: derived.maxHp, resource: derived.maxResource };
     this.combatState = null; this.currentMonsterId = null;
@@ -2248,7 +2396,7 @@ export class GameServices {
 
   toSnapshot(now: number): SaveLatest {
     return {
-      schemaVersion: 14,
+      schemaVersion: 15,
       savedAt: now,
       character: characterToSnapshot(this.character),
       inventory: inventoryToSnapshot(this.inventory),
@@ -2281,6 +2429,10 @@ export class GameServices {
         active: this.specializationsService.getActiveId(),
         changeCount: this.specializationsService.getState().changeCount,
         lastChangeAt: this.specializationsService.getState().lastChangeAt,
+      },
+      dungeons: {
+        active: this.dungeonsService.getState().active ? { ...this.dungeonsService.getState().active! } : null,
+        results: Object.fromEntries(Object.entries(this.dungeonsService.getState().results).map(([k, v]) => [k, { ...v }])),
       },
       quests: this.questStates.map((q) => ({
         questId: q.questId as string,

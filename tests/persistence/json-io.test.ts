@@ -8,7 +8,7 @@ describe('json-io', () => {
     const original = emptySave(12345);
     const parsed = loadFromJson(saveToJson(original));
     expect(parsed.savedAt).toBe(12345);
-    expect(parsed.schemaVersion).toBe(14);
+    expect(parsed.schemaVersion).toBe(15);
   });
   it('rejeita JSON invalido', () => {
     expect(() => loadFromJson('{invalid')).toThrow(SaveParseError);

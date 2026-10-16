@@ -17,6 +17,7 @@ import { renderQuestsPanel } from './quests-panel';
 import { renderAccountPanel } from './account-panel';
 import { renderTalentsPanel } from './talents-panel';
 import { renderSpecializationsPanel } from './specializations-panel';
+import { renderDungeonsPanel } from './dungeons-panel';
 
 export function renderWorldPanel(registry: ContentRegistry): HTMLElement {
   const root = document.createElement('div');
@@ -74,4 +75,5 @@ export const PANEL_RENDERERS = {
   account: (services: GameServices) => renderAccountPanel(services),
   talents: (services: GameServices) => renderTalentsPanel(services),
   specializations: (services: GameServices) => renderSpecializationsPanel(services),
+  dungeons: (services: GameServices) => renderDungeonsPanel(services),
 } as const;

@@ -1,4 +1,4 @@
-import type { SaveLatest, SaveV12, SaveV13, SaveV14, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot, SpecializationStateSnapshot } from './save-schema';
+import type { SaveLatest, SaveV12, SaveV13, SaveV14, SaveV15, ItemStackSnapshot, EssenceInstanceSnapshot, TalentStateSnapshot, SpecializationStateSnapshot, DungeonRunSnapshot, DungeonBestResultSnapshot } from './save-schema';
 import { SAVE_SCHEMA_VERSION } from './save-schema';
 
 export class SaveParseError extends Error {
@@ -40,6 +40,7 @@ export function migrateToLatest(input: unknown): SaveLatest {
       case 11: current = migrateV11toV12(current); currentVersion = 12; break;
       case 12: current = migrateV12toV13(current); currentVersion = 13; break;
       case 13: current = migrateV13toV14(current); currentVersion = 14; break;
+      case 14: current = migrateV14toV15(current); currentVersion = 15; break;
       default: throw new SaveParseError('Sem migracao da versao ' + currentVersion + '.');
     }
   }
@@ -496,6 +497,70 @@ function migrateV13toV14(v13: unknown): SaveV14 {
     specialization,
   };
 }
+function migrateV14toV15(v14: unknown): SaveV15 {
+  if (!isRecord(v14)) throw new SaveParseError('V14 invalido.');
+  if (!isRecord(v14['character']) || !isRecord(v14['equipment']) || !isRecord(v14['combatConfig'])) {
+    throw new SaveParseError('V14 incompleto.');
+  }
+
+  let active: DungeonRunSnapshot | null = null;
+  const results: Record<string, DungeonBestResultSnapshot> = {};
+
+  const dRaw = v14['dungeons'];
+  if (isRecord(dRaw)) {
+    const aRaw = dRaw['active'];
+    if (isRecord(aRaw)) {
+      const dungeonId = typeof aRaw['dungeonId'] === 'string' ? aRaw['dungeonId'] : '';
+      if (dungeonId) {
+        active = {
+          dungeonId,
+          startedAt: typeof aRaw['startedAt'] === 'number' && Number.isFinite(aRaw['startedAt']) ? Math.floor(aRaw['startedAt'] as number) : Date.now(),
+          waveIndex: typeof aRaw['waveIndex'] === 'number' && Number.isFinite(aRaw['waveIndex']) ? Math.max(0, Math.floor(aRaw['waveIndex'] as number)) : 0,
+          monsterIndex: typeof aRaw['monsterIndex'] === 'number' && Number.isFinite(aRaw['monsterIndex']) ? Math.max(0, Math.floor(aRaw['monsterIndex'] as number)) : 0,
+          totalKills: typeof aRaw['totalKills'] === 'number' && Number.isFinite(aRaw['totalKills']) ? Math.max(0, Math.floor(aRaw['totalKills'] as number)) : 0,
+        };
+      }
+    }
+    const rRaw = dRaw['results'];
+    if (isRecord(rRaw)) {
+      for (const [k, v] of Object.entries(rRaw)) {
+        if (!isRecord(v)) continue;
+        results[k] = {
+          dungeonId: k,
+          completions: typeof v['completions'] === 'number' && Number.isFinite(v['completions']) ? Math.max(0, Math.floor(v['completions'] as number)) : 0,
+          bestTimeMs: typeof v['bestTimeMs'] === 'number' && Number.isFinite(v['bestTimeMs']) ? Math.floor(v['bestTimeMs'] as number) : null,
+          firstClearedAt: typeof v['firstClearedAt'] === 'number' && Number.isFinite(v['firstClearedAt']) ? Math.floor(v['firstClearedAt'] as number) : null,
+          lastClearedAt: typeof v['lastClearedAt'] === 'number' && Number.isFinite(v['lastClearedAt']) ? Math.floor(v['lastClearedAt'] as number) : null,
+        };
+      }
+    }
+  }
+
+  const v14c = v14 as unknown as SaveV14;
+  return {
+    schemaVersion: 15,
+    savedAt: v14c.savedAt,
+    character: v14c.character,
+    inventory: v14c.inventory,
+    warehouse: v14c.warehouse,
+    equipment: v14c.equipment,
+    combat: v14c.combat,
+    combatConfig: v14c.combatConfig,
+    enhancementHistory: v14c.enhancementHistory,
+    professionStates: v14c.professionStates,
+    activity: v14c.activity,
+    buffs: v14c.buffs,
+    farm: v14c.farm,
+    transactions: v14c.transactions,
+    idleSetup: v14c.idleSetup,
+    lastIdleReport: v14c.lastIdleReport,
+    tutorial: v14c.tutorial,
+    quests: v14c.quests,
+    talents: v14c.talents,
+    specialization: v14c.specialization,
+    dungeons: { active, results },
+  };
+}
 function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!isRecord(value)) throw new SaveParseError('Save final invalido.');
   if (value['schemaVersion'] !== SAVE_SCHEMA_VERSION) throw new SaveParseError('Versao inesperada.');
@@ -507,5 +572,6 @@ function validateLatest(value: unknown): asserts value is SaveLatest {
   if (!Array.isArray(value['quests'])) throw new SaveParseError('Sem quests.');
   if (!isRecord(value['talents'])) throw new SaveParseError('Sem talents.');
   if (!isRecord(value['specialization'])) throw new SaveParseError('Sem specialization.');
+  if (!isRecord(value['dungeons'])) throw new SaveParseError('Sem dungeons.');
   if (typeof value['savedAt'] !== 'number') throw new SaveParseError('Sem savedAt.');
 }
