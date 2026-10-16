@@ -1,4 +1,4 @@
-export const SAVE_SCHEMA_VERSION = 13;
+export const SAVE_SCHEMA_VERSION = 14;
 
 export interface CharacterSnapshotV1 {
   readonly id: string;
@@ -211,11 +211,40 @@ export interface SaveV13 {
   readonly talents: TalentStateSnapshot;
 }
 
-export type SaveLatest = SaveV13;
+export interface SpecializationStateSnapshot {
+  readonly active: string | null;
+  readonly changeCount: number;
+  readonly lastChangeAt: number;
+}
 
-export function emptySave(savedAt: number): SaveV13 {
+export interface SaveV14 {
+  readonly schemaVersion: 14;
+  readonly savedAt: number;
+  readonly character: CharacterSnapshotV1;
+  readonly inventory: InventorySnapshot;
+  readonly warehouse: InventorySnapshot;
+  readonly equipment: EquipmentSnapshot;
+  readonly combat: CombatSnapshot | null;
+  readonly combatConfig: CombatConfigSnapshot;
+  readonly enhancementHistory: readonly EnhancementHistorySnapshot[];
+  readonly professionStates: Readonly<Record<string, ProfessionStateSnapshot>>;
+  readonly activity: ActivitySnapshot | null;
+  readonly buffs: readonly ActiveBuffSnapshot[];
+  readonly farm: readonly FarmPlotSnapshot[];
+  readonly transactions: readonly TransactionSnapshot[];
+  readonly idleSetup: IdleConfigSnapshot | null;
+  readonly lastIdleReport: IdleReportSnapshot | null;
+  readonly tutorial: TutorialStateSnapshot | null;
+  readonly quests: readonly QuestStateSnapshot[];
+  readonly talents: TalentStateSnapshot;
+  readonly specialization: SpecializationStateSnapshot;
+}
+
+export type SaveLatest = SaveV14;
+
+export function emptySave(savedAt: number): SaveV14 {
   return {
-    schemaVersion: 13,
+    schemaVersion: 14,
     savedAt,
     character: {
       id: 'local', name: 'Aventureiro', classId: 'class.ferrumancer',
@@ -238,5 +267,6 @@ export function emptySave(savedAt: number): SaveV13 {
     tutorial: null,
     quests: [],
     talents: { ranks: {}, respecCount: 0 },
+    specialization: { active: null, changeCount: 0, lastChangeAt: 0 },
   };
 }

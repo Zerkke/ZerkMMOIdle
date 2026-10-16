@@ -68,6 +68,8 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
   const reportKey = report ? report.endedAt.toString() : 'none';
 
   const talentsState = services.getTalentsService().getState();
+  const specState = services.getSpecializationsService().getState();
+  const specKey = 'spec:' + (specState.active ?? 'none') + ':' + specState.changeCount;
   const talentsKey = Object.entries(talentsState.ranks).sort().map(([k, v]) => k + '=' + v).join(',') + '|r' + talentsState.respecCount;
 
   const farm = services.getFarm();
@@ -89,6 +91,7 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
     'report:' + reportKey,
     'farm:' + farmKey,
     'talents:' + talentsKey,
+    specKey,
   ].join('|');
 }
 

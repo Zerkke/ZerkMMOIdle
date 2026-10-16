@@ -2,7 +2,7 @@ export type TabId =
   | 'sheet' | 'character' | 'combat' | 'inventory' | 'equipment' | 'enhancement'
   | 'lifeskills' | 'agriculture' | 'crafting' | 'cooking'
   | 'idle' | 'warehouse' | 'shop' | 'economy'
-  | 'world' | 'quests' | 'account' | 'talents';
+  | 'world' | 'quests' | 'account' | 'talents' | 'specializations';
 
 export interface TabDefinition { readonly id: TabId; readonly label: string; }
 
@@ -25,6 +25,7 @@ export const TABS: readonly TabDefinition[] = [
   { id: 'quests', label: 'Missoes' },
   { id: 'account', label: 'Conta' },
   { id: 'talents', label: 'Talentos' },
+  { id: 'specializations', label: 'Especializacoes' },
 ];
 
 export class TabController {

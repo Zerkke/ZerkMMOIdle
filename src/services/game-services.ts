@@ -64,6 +64,9 @@ import { newQuestStates, evaluateAvailability, acceptQuest, applyQuestEvent, cla
 import { QUESTS } from '../data/quests.data';
 import { TalentsService } from './talents-service';
 import { TALENT_TREE } from '../data/talents.data';
+import { SpecializationsService } from './specializations-service';
+import { SPECIALIZATION_TREE } from '../data/specializations.data';
+import type { SpecializationState } from '../domain/specializations/types';
 import type { TalentState } from '../domain/talents/types';
 
 
@@ -88,6 +91,7 @@ export type ServiceEvent =
   | { readonly type: 'tutorial-changed' }
   | { readonly type: 'quest-changed' }
   | { readonly type: 'talents-changed' }
+  | { readonly type: 'specialization-changed' }
   | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
 
 export interface CombatSessionInfo {
@@ -151,6 +155,7 @@ export class GameServices {
   private questStates: QuestState[];
   private rng: () => number;
   private readonly talentsService: TalentsService;
+  private readonly specializationsService: SpecializationsService;
 
   constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
     this.rng = rng;
@@ -209,6 +214,27 @@ export class GameServices {
       },
       talentsInitial,
     );
+    const specInitial: SpecializationState = save.specialization
+      ? {
+          active: (save.specialization.active as SpecializationState['active']) ?? null,
+          changeCount: save.specialization.changeCount,
+          lastChangeAt: save.specialization.lastChangeAt,
+        }
+      : { active: null, changeCount: 0, lastChangeAt: 0 };
+    this.specializationsService = new SpecializationsService(
+      SPECIALIZATION_TREE,
+      {
+        getCharacterLevel: () => this.character.level,
+        getTalentRank: (talentId: string) => this.talentsService.getRank(talentId),
+        getSilver: () => this.character.silver,
+        spendSilver: (amount: number) => {
+          if (this.character.silver < amount) return false;
+          this.character = { ...this.character, silver: this.character.silver - amount };
+          return true;
+        },
+      },
+      specInitial,
+    );
     this.ensureAllProfessions();
     this.repairLegacyTools();
     this.ensureStartingTools();
@@ -238,7 +264,7 @@ export class GameServices {
     }
 
     return new GameServices(registry, {
-      schemaVersion: 13,
+      schemaVersion: 14,
       savedAt: now,
       character: characterToSnapshot(character),
       inventory: inventoryToSnapshot(inventory),
@@ -257,6 +283,7 @@ export class GameServices {
       tutorial: null,
       quests: [],
       talents: { ranks: {}, respecCount: 0 },
+      specialization: { active: null, changeCount: 0, lastChangeAt: 0 },
     }, rng);
   }
 
@@ -285,6 +312,21 @@ export class GameServices {
       this.emit({ type: 'character-changed' });
     }
     return r;
+  }
+  getSpecializationsService(): SpecializationsService { return this.specializationsService; }
+  activateSpecialization(specId: import('../domain/specializations/types').SpecializationId): boolean {
+    const r = this.specializationsService.activate(specId, Date.now());
+    if (!r.ok) return false;
+    this.clampPlayerStats();
+    this.emit({ type: 'specialization-changed' });
+    this.emit({ type: 'character-changed' });
+    return true;
+  }
+  deactivateSpecialization(): void {
+    this.specializationsService.deactivate(Date.now());
+    this.clampPlayerStats();
+    this.emit({ type: 'specialization-changed' });
+    this.emit({ type: 'character-changed' });
   }
   getExperienceToNext(): number { return experienceToNextLevel(this.character.level); }
 
@@ -2003,7 +2045,7 @@ export class GameServices {
     const essBonus = this.getEssenceBonuses();
     const talentBonus = this.talentsService.getBonuses();
     const enh = this.getEquipmentEnhancementBonuses();
-    return deriveStats(baseAttrs, totalPower, {
+    const baseStats = deriveStats(baseAttrs, totalPower, {
       apScaling: cls?.apScaling ?? 1,
       dpScaling: cls?.dpScaling ?? 1,
       buffAp: this.buffModifier('ap-bonus'),
@@ -2030,6 +2072,7 @@ export class GameServices {
       talentHpRegen: talentBonus.hpRegen,
       talentDamageReduction: talentBonus.damageReduction,
     });
+    return this.specializationsService.applyModifiers(baseStats);
   }
 
   /** Breakdown de AP/DP para a UI. Cada componente aparece uma unica vez. */
@@ -2205,7 +2248,7 @@ export class GameServices {
 
   toSnapshot(now: number): SaveLatest {
     return {
-      schemaVersion: 13,
+      schemaVersion: 14,
       savedAt: now,
       character: characterToSnapshot(this.character),
       inventory: inventoryToSnapshot(this.inventory),
@@ -2233,6 +2276,11 @@ export class GameServices {
       talents: {
         ranks: { ...this.talentsService.getState().ranks },
         respecCount: this.talentsService.getState().respecCount,
+      },
+      specialization: {
+        active: this.specializationsService.getActiveId(),
+        changeCount: this.specializationsService.getState().changeCount,
+        lastChangeAt: this.specializationsService.getState().lastChangeAt,
       },
       quests: this.questStates.map((q) => ({
         questId: q.questId as string,

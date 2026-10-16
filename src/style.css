@@ -7654,3 +7654,53 @@ img, svg, video {
 @media (max-width: 640px) {
   .talents-branch__grid { grid-template-columns: 1fr; }
 }
+
+/* ==================== ESPECIALIZACOES ==================== */
+.spec-panel { display: flex; flex-direction: column; gap: 14px; }
+.spec-status { display: flex; align-items: center; gap: 14px; padding: 14px; border-radius: 8px; border: 1px solid rgba(90, 80, 130, 0.4); background: rgba(20, 15, 40, 0.6); }
+.spec-status--active { border-color: var(--spec-color, #e8a848); background: rgba(30, 20, 55, 0.8); }
+.spec-status--empty { border-style: dashed; }
+.spec-status__icon { color: var(--spec-color, #e8c977); flex-shrink: 0; }
+.spec-status__body { flex: 1; }
+.spec-status__title { font-size: 15px; font-weight: 700; color: var(--spec-color, #e8e0f0); letter-spacing: 0.5px; }
+.spec-status__desc { font-size: 12px; color: #a8a0c0; margin-top: 2px; }
+.spec-status__off { padding: 8px 14px; background: transparent; border: 1px solid #6a3a3a; border-radius: 6px; color: #e8a0a0; cursor: pointer; font-size: 11px; font-weight: 700; }
+.spec-status__off:hover { background: rgba(106, 58, 58, 0.25); }
+.spec-section { font-size: 11px; font-weight: 700; color: #a8a0c0; text-transform: uppercase; letter-spacing: 1.5px; margin-top: 4px; }
+.spec-compare { overflow-x: auto; border-radius: 8px; border: 1px solid rgba(90, 80, 130, 0.3); }
+.spec-compare__table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.spec-compare__table th, .spec-compare__table td { padding: 6px 10px; text-align: right; border-bottom: 1px solid rgba(90, 80, 130, 0.2); }
+.spec-compare__table thead th { background: rgba(15, 10, 30, 0.8); font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #a8a0c0; }
+.spec-compare__label { text-align: left; color: #a8a0c0; }
+.spec-compare__col--current { background: rgba(40, 30, 70, 0.4); font-weight: 700; }
+.spec-compare__col--active { background: rgba(60, 40, 90, 0.5); font-weight: 700; }
+.spec-compare__cell--up { color: #6ab87a; font-weight: 600; }
+.spec-compare__cell--down { color: #c85858; font-weight: 600; }
+.spec-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.spec-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 8px; border: 1px solid rgba(90, 80, 130, 0.4); background: rgba(20, 15, 40, 0.6); }
+.spec-card--active { border-color: var(--spec-color, #e8a848); box-shadow: 0 0 12px rgba(232, 168, 72, 0.15); }
+.spec-card--locked { opacity: 0.65; }
+.spec-card__head { display: flex; align-items: center; gap: 10px; }
+.spec-card__icon { color: var(--spec-color, #e8c977); }
+.spec-card__name { font-size: 15px; font-weight: 700; color: var(--spec-color, #e8e0f0); flex: 1; }
+.spec-card__badge { padding: 2px 8px; border-radius: 4px; background: var(--spec-color, #e8a848); color: #0d0a1a; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+.spec-card__lore { font-size: 11px; color: #9080b0; font-style: italic; margin: 0; }
+.spec-card__desc { font-size: 12px; color: #c8b8e0; margin: 0; }
+.spec-card__perks, .spec-card__drawbacks { display: flex; flex-wrap: wrap; gap: 4px; }
+.spec-chip { font-size: 10px; padding: 3px 7px; border-radius: 4px; font-weight: 600; }
+.spec-chip--perk { background: rgba(30, 90, 50, 0.5); color: #90d0a0; }
+.spec-chip--drawback { background: rgba(90, 30, 40, 0.5); color: #e8a0a8; }
+.spec-card__reqs { display: flex; flex-direction: column; gap: 3px; }
+.spec-req { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #a8a0c0; }
+.spec-req__dot { width: 8px; height: 8px; border-radius: 50%; background: #6a3a3a; flex-shrink: 0; }
+.spec-req--ok .spec-req__dot { background: #6ab87a; }
+.spec-req--ok .spec-req__text { color: #a8d0b0; }
+.spec-card__btn { margin-top: 4px; padding: 8px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; background: var(--spec-color, #6a9ad8); color: #0d0a1a; border: none; }
+.spec-card__btn:disabled { background: rgba(80, 70, 100, 0.4); color: #7a7088; cursor: not-allowed; }
+.spec-card__btn:hover:not(:disabled) { filter: brightness(1.1); }
+
+@media (max-width: 640px) {
+  .spec-grid { grid-template-columns: 1fr; }
+  .spec-compare__table { font-size: 10px; }
+  .spec-compare__table th, .spec-compare__table td { padding: 4px 6px; }
+}
