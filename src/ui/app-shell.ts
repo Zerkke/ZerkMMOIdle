@@ -1,6 +1,7 @@
 import type { ContentRegistry } from '../data/registry';
 import type { GameServices } from '../services/game-services';
-import { TABS, TabController, type TabId } from './tabs';
+import { TAB_GROUPS, TabController, type TabId } from './tabs';
+import { createIcon } from './icons';
 import { renderResourceBar, updateResourceBar } from './resource-bar';
 import { renderBuffBar } from './buff-bar';
 import { renderTutorialOverlay } from './tutorial-overlay';
@@ -8,7 +9,6 @@ import { renderActivityBanner, updateActivityBanner } from './activity-banner';
 import { PANEL_RENDERERS } from './panels';
 import type { SaveManager } from '../persistence/save-manager';
 import { DEFAULT_SLOT } from '../persistence/save-manager';
-import { renderPersistenceControls } from './persistence-controls';
 import { toast } from './toast';
 import { BALANCE } from '../data/balance.config';
 
@@ -16,7 +16,6 @@ export interface AppShellHosts {
   readonly tabsHost: HTMLElement;
   readonly panelHost: HTMLElement;
   readonly resourceHost: HTMLElement;
-  readonly controlsHost: HTMLElement;
   readonly buffHost: HTMLElement;
   readonly tutorialHost: HTMLElement;
   readonly bannerHost: HTMLElement;
@@ -102,22 +101,42 @@ function computeStructuralKey(services: GameServices, activeTab: TabId): string 
 }
 
 export function mountAppShell(hosts: AppShellHosts, options: AppShellOptions): void {
-  const { registry, services, saveManager, onReload, onTabChange, onSnapshotSaved } = options;
+  const { registry, services, saveManager, onReload: _onReload, onTabChange, onSnapshotSaved } = options;
 
-  hosts.controlsHost.replaceChildren(renderPersistenceControls({ services, saveManager, onReload }));
 
   const controller = new TabController();
   const tabButtons = new Map<TabId, HTMLButtonElement>();
 
   hosts.tabsHost.replaceChildren();
-  for (const tab of TABS) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'tab-button';
-    btn.textContent = tab.label;
-    btn.addEventListener('click', () => controller.activate(tab.id));
-    hosts.tabsHost.appendChild(btn);
-    tabButtons.set(tab.id, btn);
+  for (const group of TAB_GROUPS) {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'nav-group';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'nav-group__label';
+    labelEl.textContent = group.label;
+    groupEl.appendChild(labelEl);
+
+    for (const tab of group.tabs) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'nav-button';
+      btn.title = tab.label;
+
+      const iconEl = createIcon(tab.icon, 16);
+      iconEl.setAttribute('class', 'nav-button__icon');
+      btn.appendChild(iconEl);
+
+      const labelText = document.createElement('span');
+      labelText.className = 'nav-button__label';
+      labelText.textContent = tab.label;
+      btn.appendChild(labelText);
+
+      btn.addEventListener('click', () => controller.activate(tab.id));
+      groupEl.appendChild(btn);
+      tabButtons.set(tab.id, btn);
+    }
+    hosts.tabsHost.appendChild(groupEl);
   }
 
   let lastStructuralKey = '';
@@ -128,7 +147,7 @@ export function mountAppShell(hosts: AppShellHosts, options: AppShellOptions): v
     if (!force && newKey === lastStructuralKey) return;
     lastStructuralKey = newKey;
 
-    for (const [id, btn] of tabButtons) btn.classList.toggle('tab-button--active', id === active);
+    for (const [id, btn] of tabButtons) btn.classList.toggle('nav-button--active', id === active);
     hosts.resourceHost.replaceChildren(renderResourceBar(services));
     hosts.buffHost.replaceChildren(renderBuffBar(services));
     hosts.tutorialHost.replaceChildren(renderTutorialOverlay(services));

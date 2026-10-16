@@ -17,7 +17,8 @@ export function renderActivityBanner(services: GameServices): HTMLElement {
     renderLifeskill(services, root, activity);
   } else {
     root.classList.add('activity-banner--idle');
-    renderIdle(root);
+    // Sem atividade: escondemos o banner por completo
+    root.style.display = 'none';
   }
 
   return root;
@@ -160,32 +161,6 @@ function renderLifeskill(
   right.appendChild(cancel);
 
   root.appendChild(right);
-}
-
-/* ==================== IDLE ==================== */
-
-function renderIdle(root: HTMLElement): void {
-  const left = document.createElement('div');
-  left.className = 'activity-banner__left';
-
-  const icon = buildIconBox('hourglass', 'activity-banner__icon--idle');
-  left.appendChild(icon);
-
-  const info = document.createElement('div');
-  info.className = 'activity-banner__info';
-
-  const title = document.createElement('div');
-  title.className = 'activity-banner__title';
-  title.textContent = 'Sem atividade';
-  info.appendChild(title);
-
-  const sub = document.createElement('div');
-  sub.className = 'activity-banner__sub';
-  sub.textContent = 'Vai a Combate ou Lifeskills para comecares a agir. Configura Idle para progresso offline.';
-  info.appendChild(sub);
-
-  left.appendChild(info);
-  root.appendChild(left);
 }
 
 /* ==================== HELPERS ==================== */
