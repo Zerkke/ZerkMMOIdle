@@ -63,6 +63,7 @@ export class PvpService {
   private state: PvpState;
   private cachedOpponents: PvpBuildRecord[] | null = null;
   private supabaseFailed = false;
+  private authUserId: string | null = null;
 
   constructor(
     private readonly config: PvpConfig,
@@ -73,6 +74,22 @@ export class PvpService {
   }
 
   getState(): PvpState { return this.state; }
+  /**
+   * Obter userId real do Supabase Auth. Nao usar character.id (que e 'local').
+   * Faz cache em memoria para nao chamar o Supabase a cada operacao.
+   */
+  private async resolveUserId(): Promise<string | null> {
+    if (this.authUserId) return this.authUserId;
+    if (this.isMockMode() || !supabase) return null;
+    try {
+      const { data } = await supabase.auth.getSession();
+      const uid = data.session?.user.id ?? null;
+      this.authUserId = uid;
+      return uid;
+    } catch {
+      return null;
+    }
+  }
   setState(state: PvpState): void { this.state = state; }
 
   isMockMode(): boolean { return this.supabaseFailed || !isSupabaseConfigured() || !supabase; }
@@ -94,7 +111,7 @@ export class PvpService {
       return { ok: true, error: null };
     }
 
-    const userId = this.opts.getUserId();
+    const userId = await this.resolveUserId();
     if (!userId) return { ok: false, error: 'sem-user' };
 
     try {
@@ -131,7 +148,7 @@ export class PvpService {
       this.cachedOpponents = [...MOCK_PVP_OPPONENTS];
       return this.cachedOpponents;
     }
-    const userId = this.opts.getUserId();
+    const userId = await this.resolveUserId();
     if (!userId) return [];
     try {
       const { data, error } = await supabase!

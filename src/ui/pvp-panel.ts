@@ -6,6 +6,7 @@ import { createIcon, type IconName } from './icons';
 
 let cachedOpponents: readonly PvpBuildRecord[] = [];
 let lastFetch = 0;
+let loaded = false;
 
 export function renderPvpPanel(services: GameServices): HTMLElement {
   const root = document.createElement('div');
@@ -38,7 +39,7 @@ export function renderPvpPanel(services: GameServices): HTMLElement {
   root.appendChild(buildRegisterRow(services, view.registered, view.registeredAt, root));
 
   root.appendChild(sectionTitle('Adversarios elegiveis'));
-  if (cachedOpponents.length === 0) {
+  if (!loaded) {
     const empty = document.createElement('div');
     empty.className = 'pvp-empty';
     empty.textContent = 'A carregar adversarios...';
@@ -86,6 +87,7 @@ async function refreshOpponents(services: GameServices, root: HTMLElement): Prom
   lastFetch = Date.now();
   const opps = await services.getPvpService().loadOpponents();
   cachedOpponents = opps;
+  loaded = true;
   const fresh = renderPvpPanel(services);
   root.replaceWith(fresh);
 }
@@ -238,6 +240,7 @@ function showPvpResultModal(services: GameServices, r: PvpFightResult, root: HTM
   btn.addEventListener('click', () => {
     modal.remove();
     cachedOpponents = [];
+    loaded = false;
     lastFetch = 0;
     const fresh = renderPvpPanel(services);
     root.replaceWith(fresh);
