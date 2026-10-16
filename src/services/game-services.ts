@@ -77,6 +77,10 @@ import { PvpService } from './pvp-service';
 import { DEFAULT_PVP_CONFIG } from '../domain/pvp/types';
 import type { PvpState, PvpSnapshot } from '../domain/pvp/types';
 import { PVP_SNAPSHOT_VERSION } from '../domain/pvp/types';
+import { RankingsService } from './rankings-service';
+import { DEFAULT_RANKINGS_CONFIG } from '../domain/rankings/types';
+import { SEASON_REWARD_TABLE } from '../data/rankings.data';
+import type { RankingsState } from '../domain/rankings/types';
 import type { DungeonsState } from '../domain/dungeons/types';
 import type { DungeonDefinition } from '../domain/dungeons/types';
 import type { SpecializationState } from '../domain/specializations/types';
@@ -108,6 +112,7 @@ export type ServiceEvent =
   | { readonly type: 'dungeon-changed' }
   | { readonly type: 'arena-changed' }
   | { readonly type: 'pvp-changed' }
+  | { readonly type: 'rankings-changed' }
   | { readonly type: 'notice'; readonly message: string; readonly level: 'info' | 'warn' | 'error' };
 
 export interface CombatSessionInfo {
@@ -175,6 +180,8 @@ export class GameServices {
   private readonly dungeonsService: DungeonsService;
   private readonly arenaService: ArenaService;
   private readonly pvpService: PvpService;
+  private readonly rankingsService: RankingsService;
+  private rankingsState: RankingsState;
 
   constructor(readonly registry: ContentRegistry, save: SaveLatest, rng: () => number = Math.random) {
     this.rng = rng;
@@ -324,6 +331,17 @@ export class GameServices {
       },
       pvpInitial,
     );
+    this.rankingsState = save.rankings
+      ? {
+          lastSeenSeasonId: save.rankings.lastSeenSeasonId,
+          pendingSeasonReward: save.rankings.pendingSeasonReward ? { ...save.rankings.pendingSeasonReward, finalTier: save.rankings.pendingSeasonReward.finalTier as import('../domain/rankings/types').RankTier } : null,
+        }
+      : { lastSeenSeasonId: null, pendingSeasonReward: null };
+    this.rankingsService = new RankingsService({
+      getUserId: () => this.character.id,
+      config: DEFAULT_RANKINGS_CONFIG,
+      rewardTable: SEASON_REWARD_TABLE,
+    });
     this.ensureAllProfessions();
     this.repairLegacyTools();
     this.ensureStartingTools();
@@ -353,7 +371,7 @@ export class GameServices {
     }
 
     return new GameServices(registry, {
-      schemaVersion: 17,
+      schemaVersion: 18,
       savedAt: now,
       character: characterToSnapshot(character),
       inventory: inventoryToSnapshot(inventory),
@@ -376,6 +394,7 @@ export class GameServices {
       dungeons: { active: null, results: {} },
       arena: { rating: 1000, peakRating: 1000, fightsToday: 0, lastResetAt: 0, totalWins: 0, totalLosses: 0, history: [] },
       pvp: { registeredBuild: null, registeredAt: null, dailyAttacksUsed: 0, dailyResetAt: 0, localRating: 1000, localPeakRating: 1000, localWins: 0, localLosses: 0, history: [] },
+      rankings: { lastSeenSeasonId: null, pendingSeasonReward: null },
     }, rng);
   }
 
@@ -409,6 +428,53 @@ export class GameServices {
   getDungeonsService(): DungeonsService { return this.dungeonsService; }
   getArenaService(): ArenaService { return this.arenaService; }
   getPvpService(): PvpService { return this.pvpService; }
+  getRankingsService(): RankingsService { return this.rankingsService; }
+  getRankingsState(): RankingsState { return this.rankingsState; }
+  /**
+   * Verifica se a temporada mudou desde a ultima sessao. Se sim,
+   * faz snapshot no servidor e guarda pending reward local.
+   */
+  async checkSeasonRollover(): Promise<void> {
+    const now = Date.now();
+    const currentSeasonId = this.rankingsService.seasonIdFor(now);
+    const lastSeen = this.rankingsState.lastSeenSeasonId;
+    if (lastSeen === null) {
+      this.rankingsState = { ...this.rankingsState, lastSeenSeasonId: currentSeasonId };
+      this.emit({ type: 'rankings-changed' });
+      return;
+    }
+    if (lastSeen === currentSeasonId) return;
+    const pending = await this.rankingsService.snapshotSeasonEnd(lastSeen, now);
+    this.rankingsState = {
+      lastSeenSeasonId: currentSeasonId,
+      pendingSeasonReward: pending,
+    };
+    this.emit({ type: 'rankings-changed' });
+  }
+  /** Reclama a recompensa pendente (idempotente no servidor). */
+  async claimPendingSeasonReward(): Promise<boolean> {
+    const pending = this.rankingsState.pendingSeasonReward;
+    if (!pending) return false;
+    await this.rankingsService.claimSeasonReward(pending.seasonId);
+    if (pending.silver > 0) this.character = addSilver(this.character, pending.silver);
+    if (pending.xp > 0) {
+      const prevLevel = this.character.level;
+      this.character = applyExperience(this.character, pending.xp).state;
+      if (this.character.level > prevLevel) {
+        const d = this.getDerivedStats();
+        this.character = { ...this.character, hp: d.maxHp, resource: d.maxResource };
+      }
+    }
+    this.ledger.record('quest', pending.silver, [], 'Recompensa de temporada: ' + pending.seasonName, Date.now());
+    this.rankingsState = { ...this.rankingsState, pendingSeasonReward: null };
+    this.emit({ type: 'rankings-changed' });
+    this.emit({ type: 'character-changed' });
+    return true;
+  }
+  dismissPendingReward(): void {
+    this.rankingsState = { ...this.rankingsState, pendingSeasonReward: null };
+    this.emit({ type: 'rankings-changed' });
+  }
   buildPvpSnapshot(): PvpSnapshot {
     const d = this.getDerivedStats();
     const spec = this.specializationsService.getActive();
@@ -2529,7 +2595,7 @@ export class GameServices {
 
   toSnapshot(now: number): SaveLatest {
     return {
-      schemaVersion: 17,
+      schemaVersion: 18,
       savedAt: now,
       character: characterToSnapshot(this.character),
       inventory: inventoryToSnapshot(this.inventory),
@@ -2586,6 +2652,10 @@ export class GameServices {
         localWins: this.pvpService.getState().localWins,
         localLosses: this.pvpService.getState().localLosses,
         history: this.pvpService.getState().history.map((h) => ({ ...h })),
+      },
+      rankings: {
+        lastSeenSeasonId: this.rankingsState.lastSeenSeasonId,
+        pendingSeasonReward: this.rankingsState.pendingSeasonReward ? { ...this.rankingsState.pendingSeasonReward } : null,
       },
       quests: this.questStates.map((q) => ({
         questId: q.questId as string,

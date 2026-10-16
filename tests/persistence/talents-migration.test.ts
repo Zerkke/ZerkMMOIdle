@@ -5,7 +5,7 @@ import { emptySave } from '../../src/persistence/save-schema';
 describe('talents migration v12 -> v13', () => {
   it('v13 vazio tem talents com ranks vazios', () => {
     const s = migrateToLatest(emptySave(0));
-    expect(s.schemaVersion).toBe(17);
+    expect(s.schemaVersion).toBe(18);
     expect(s.talents.ranks).toEqual({});
     expect(s.talents.respecCount).toBe(0);
   });
@@ -17,7 +17,7 @@ describe('talents migration v12 -> v13', () => {
     } as Record<string, unknown>;
     delete v12['talents'];
     const s = migrateToLatest(v12);
-    expect(s.schemaVersion).toBe(17);
+    expect(s.schemaVersion).toBe(18);
     expect(s.talents.ranks).toEqual({});
   });
 

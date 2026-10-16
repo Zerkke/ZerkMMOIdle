@@ -5,7 +5,7 @@ import { emptySave } from '../../src/persistence/save-schema';
 describe('pvp migration v16 -> v17', () => {
   it('v17 vazio tem pvp default', () => {
     const s = migrateToLatest(emptySave(0));
-    expect(s.schemaVersion).toBe(17);
+    expect(s.schemaVersion).toBe(18);
     expect(s.pvp.registeredBuild).toBeNull();
     expect(s.pvp.localRating).toBe(1000);
   });

@@ -1,11 +1,12 @@
 import type { GameServices } from '../services/game-services';
 import { renderPanelHeader } from './panel-header';
 import { renderPvpPanel } from './pvp-panel';
+import { renderRankingsPanel } from './rankings-panel';
 import { createIcon, type IconName } from './icons';
 import type { ArenaOpponentView } from '../services/arena-service';
 import type { ArenaFightResult } from '../domain/arena/types';
 
-type ArenaTab = 'ai' | 'pvp';
+type ArenaTab = 'ai' | 'pvp' | 'rankings';
 
 let activeArenaTab: ArenaTab = 'ai';
 
@@ -25,6 +26,7 @@ export function renderArenaPanel(services: GameServices): HTMLElement {
   const defs: { id: ArenaTab; label: string; icon: IconName }[] = [
     { id: 'ai', label: 'Contra IA', icon: 'sparkles' },
     { id: 'pvp', label: 'Contra Jogadores', icon: 'swords' },
+    { id: 'rankings', label: 'Rankings', icon: 'level-up' },
   ];
   for (const t of defs) {
     const b = document.createElement('button');
@@ -45,11 +47,9 @@ export function renderArenaPanel(services: GameServices): HTMLElement {
 
   const content = document.createElement('div');
   content.className = 'arena-content';
-  if (activeArenaTab === 'ai') {
-    content.appendChild(renderAiArena(services));
-  } else {
-    content.appendChild(renderPvpPanel(services));
-  }
+  if (activeArenaTab === 'ai') content.appendChild(renderAiArena(services));
+  else if (activeArenaTab === 'pvp') content.appendChild(renderPvpPanel(services));
+  else content.appendChild(renderRankingsPanel(services));
   root.appendChild(content);
 
   return root;
