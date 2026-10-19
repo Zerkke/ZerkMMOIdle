@@ -88,7 +88,7 @@ zerk-idle-mmorpg/
 
 Desenvolvido por **Mr ZerkkJ**.
 
-* **LinkedIn:** [O teu link do LinkedIn]
-* **GitHub:** [@teu-usuario](https://github.com/teu-usuario)
+* **LinkedIn:** [[O teu link do LinkedIn](https://www.linkedin.com/feed/)]
+* **GitHub:** [(https://github.com/Zerkke)]
 
 *Se gostaste do projeto ou queres contribuir/deixar feedback, fica à vontade para abrir uma Issue ou Pull Request!*
