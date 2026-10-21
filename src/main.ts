@@ -104,7 +104,7 @@ async function bootstrap(): Promise<void> {
   });
 
   eventBus.emit('game:ready', { timestamp: Date.now() });
-  console.log('[Zerk] Auth OK. UserId: ' + (userId ?? 'anon'));
+  /* console.log removed by CloudPulse */);
 }
 
 if (document.readyState === 'loading') {
