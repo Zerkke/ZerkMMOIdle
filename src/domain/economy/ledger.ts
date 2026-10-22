@@ -42,7 +42,7 @@ export class TransactionLedger {
 
   /** Métricas agregadas de todo o histórico (não só do que está em buffer). */
   metrics(): EconomyMetrics {
-    const byCategory: Record<TransactionCategory, { income: number; expense: number }> = JSON.parse(JSON.stringify(EMPTY_CATEGORY_METRICS));
+    const byCategory: Record<TransactionCategory, { income: number; expense: number }> = structuredClone(EMPTY_CATEGORY_METRICS);
     let totalIncome = 0;
     let totalExpense = 0;
 
